@@ -214,10 +214,11 @@ function seedView(){
   return '<p class="hint">おうちの人が、はじめの準備をするまで まっていてね。</p>'}
 
 function homeView(k){
-  var b=bal(k.id),h=chips(k);
+  var b=bal(k.id),h=chips(k),st0=step(),units=Math.floor(b/st0);
+  var yenTxt=units>0?'<b>'+(units*st0*rate())+'</b>円 にこうかんできるよ':'あと <b>'+(st0-b)+'</b>pt で <b>'+(st0*rate())+'</b>円 にこうかんできるよ';
   h+='<section class="balance" style="--k:'+esc(kidColor(k))+'"><p class="bl">'+esc(k.name)+'のポイント</p>'
    +'<p class="num"><span class="coin" aria-hidden="true">P</span>'+b+'<small>pt</small></p>'
-   +'<span class="yen"><b>'+(b*rate())+'</b>円 にこうかんできるよ</span></section>';
+   +'<span class="yen">'+yenTxt+'</span></section>';
   h+='<h2>おてつだい</h2>';
   if(!S.chores.length){h+='<p class="hint">'+(S.parent?'「せってい」でおてつだいを追加してね':'おてつだいが まだ登録されていません')+'</p>';return h+logoutBtn()}
   h+='<ul class="list">'+S.chores.map(function(c){
@@ -232,13 +233,14 @@ function homeView(k){
 function logoutBtn(){return '<p class="hint"><button class="ghost" data-act="logout">ログアウト</button></p>'}
 
 function exView(k){
-  var b=bal(k.id),pend=pendX(k.id),avail=Math.max(0,b-pend),st=step();
-  if(S.xp==null||S.xp>avail)S.xp=Math.min(st,avail);
+  var b=bal(k.id),pend=pendX(k.id),avail=Math.max(0,b-pend),st=step(),maxX=Math.floor(avail/st)*st;
+  if(S.xp==null)S.xp=Math.min(st,maxX);
+  S.xp=Math.min(S.xp,maxX);S.xp-=S.xp%st;
   var xp=S.xp,r=rate();
   var h=chips(k)+'<div class="panel"><p class="sub"><span>つかえるポイント <b>'+avail+'pt</b></span>'+(pend?'<span>かくにんまち '+pend+'pt</span>':'')+'</p>'
    +'<div class="stepper"><button class="rd" data-act="xp" data-d="-'+st+'" aria-label="へらす">−</button>'
    +'<output>'+xp+'<small>pt</small></output><button class="rd" data-act="xp" data-d="'+st+'" aria-label="ふやす">＋</button></div>'
-   +'<p class="conv">= <b>'+(xp*r)+'</b>円</p>'
+   +(maxX>0?'<p class="conv">= <b>'+(xp*r)+'</b>円</p>':'<p class="conv">'+st+'pt たまると '+(st*r)+'円 にこうかんできるよ</p>')
    +'<div class="actions"><button class="btn quiet" data-act="xmax">ぜんぶ</button><button class="btn acc wide" data-act="xgo"'+(xp<=0?' disabled':'')+'>'+(S.parent?'こうかんしてわたす':'お小遣いにこうかんしたい')+'</button></div></div>';
   if(!S.parent)h+='<p class="hint">おしたら おうちの人にしらせが とどくよ。わたしてもらうまで、ポイントはへらないよ。</p>';
   return h}
@@ -338,11 +340,11 @@ document.addEventListener('click',function(ev){
     c=S.chores.find(function(x){return x.id===id});if(!c)return;
     if(S.parent)return run(function(){return addLedger(null,k.id,+c.points,'earn',c.title)},k.name+'に '+c.points+'pt あげたよ');
     return run(function(){return S.db.collection('requests').add({kid:k.id,kind:'chore',choreId:c.id,label:c.title,points:+c.points,ts:Date.now()})},'おうちの人に知らせたよ')}
-  if(act==='xp'){var av=Math.max(0,bal(k.id)-pendX(k.id));S.xp=Math.max(0,Math.min(av,(S.xp||0)+int(t.dataset.d,0)));render(true);return}
+  if(act==='xp'){var av=Math.max(0,bal(k.id)-pendX(k.id)),stp=step(),mx=Math.floor(av/stp)*stp;S.xp=Math.max(0,Math.min(mx,(S.xp||0)+int(t.dataset.d,0)));render(true);return}
   if(act==='xmax'){var av2=Math.max(0,bal(k.id)-pendX(k.id));S.xp=av2-(av2%step());render(true);return}
   if(act==='xgo'){
     var pts=S.xp||0,av3=Math.max(0,bal(k.id)-pendX(k.id));
-    if(pts<=0||pts>av3){toast('ポイントがたりません');return}
+    if(pts<=0||pts>av3||pts%step()!==0){toast(step()+'ptずつ こうかんできるよ');return}
     if(S.parent)return run(function(){return addLedger(null,k.id,-pts,'exchange','お小遣いにこうかん',{yen:pts*rate()})},pts*rate()+'円 わたしたよ').then(function(){S.xp=null;render(true)});
     return run(function(){return S.db.collection('requests').add({kid:k.id,kind:'exchange',points:pts,yen:pts*rate(),label:'お小遣いにこうかん',ts:Date.now()})},'おうちの人に知らせたよ').then(function(){S.xp=null;render(true)})}
   if(act==='cancel')return run(function(){return S.db.doc('requests/'+id).delete()},'とりけしたよ');
