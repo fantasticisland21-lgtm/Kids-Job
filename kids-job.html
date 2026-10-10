@@ -81,6 +81,9 @@ td.up{color:var(--plus)} td.dn{color:var(--minus)}
 .rt{flex:1;min-width:0;font-weight:700;overflow-wrap:anywhere}
 .rt small{display:block;color:var(--muted);font-weight:500;font-size:12px}
 .btn{min-height:44px;padding:0 18px;border-radius:14px;font-weight:900;background:var(--go);color:var(--go-fg);white-space:nowrap}
+.gives{display:flex;gap:6px}
+.btn.kb{background:var(--k);color:#fff;padding:0 12px;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.15;min-height:48px}
+.btn.kb small{font-size:10px;font-weight:700;opacity:.9}
 .btn.acc{background:var(--accent);color:var(--accent-fg)}
 .btn.quiet{background:var(--surface-2);color:var(--fg)}
 .btn[disabled]{background:var(--surface-2);color:var(--muted);cursor:default}
@@ -264,13 +267,13 @@ function seedView(){
 
 function homeView(k){
   var h='';
-  h+='<div class="bals">'+S.kids.map(function(x){return balCard(x,x.id===k.id)}).join('')+'</div>';
-  h+='<h2>'+esc(k.name)+'の おてつだい</h2>';
+  h+='<div class="bals">'+S.kids.map(function(x){return balCard(x,!S.parent&&x.id===k.id)}).join('')+'</div>';
+  h+='<h2>'+(S.parent?'おてつだい':esc(k.name)+'の おてつだい')+'</h2>';
   if(!S.chores.length){h+='<p class="hint">'+(S.parent?'「せってい」でおてつだいを追加してね':'おてつだいが まだ登録されていません')+'</p>';return h+logoutBtn()}
   h+='<ul class="list">'+S.chores.map(function(c){
     var pend=!S.parent&&pendingFor(k.id,c.id);
     var btn=pend?'<button class="btn" disabled>かくにんまち</button>'
-      :S.parent?'<button class="btn acc" data-act="chore" data-id="'+esc(c.id)+'">あげる</button>'
+      :S.parent?'<span class="gives">'+S.kids.map(function(x){return '<button class="btn kb" style="--k:'+esc(kidColor(x))+'" data-act="chore" data-id="'+esc(c.id)+'" data-kid="'+esc(x.id)+'">'+esc(x.name)+'<small>あげる</small></button>'}).join('')+'</span>'
       :'<button class="btn" data-act="chore" data-id="'+esc(c.id)+'">やった!</button>';
     return '<li class="row"><span class="stamp">+'+(+c.points||0)+'<i>pt</i></span><span class="rt">'+esc(c.title)+'</span>'+btn+'</li>'}).join('')+'</ul>';
   var mine=S.reqs.filter(function(r){return r.kid===k.id}).length;
@@ -387,7 +390,7 @@ document.addEventListener('click',function(ev){
   if(!S.db||!k)return;
   if(act==='chore'){
     c=S.chores.find(function(x){return x.id===id});if(!c)return;
-    if(S.parent)return run(function(){return addLedger(null,k.id,+c.points,'earn',c.title)},k.name+'に '+c.points+'pt あげたよ');
+    if(S.parent){var gk=kidById(t.dataset.kid)||k;return run(function(){return addLedger(null,gk.id,+c.points,'earn',c.title)},gk.name+'に '+c.points+'pt あげたよ')}
     return run(function(){return S.db.collection('requests').add({kid:k.id,kind:'chore',choreId:c.id,label:c.title,points:+c.points,ts:Date.now()})},'おうちの人に知らせたよ')}
   if(act==='xp'){var av=Math.max(0,bal(k.id)-pendX(k.id)),stp=step(),mx=Math.floor(av/stp)*stp;S.xp=Math.max(0,Math.min(mx,(S.xp||0)+int(t.dataset.d,0)));render(true);return}
   if(act==='xmax'){var av2=Math.max(0,bal(k.id)-pendX(k.id));S.xp=av2-(av2%step());render(true);return}
