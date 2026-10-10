@@ -83,7 +83,8 @@ td.up{color:var(--plus)} td.dn{color:var(--minus)}
 .btn{min-height:44px;padding:0 18px;border-radius:14px;font-weight:900;background:var(--go);color:var(--go-fg);white-space:nowrap}
 .gives{display:flex;gap:6px}
 .btn.kb[disabled]{background:var(--surface-2);color:var(--muted);box-shadow:inset 0 0 0 2px var(--k)}
-.btn.kb{background:var(--k);color:#fff;padding:0 12px;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.15;min-height:48px}
+.btn.kb{background:var(--k);color:#fff;padding:0 6px;width:84px;flex:none;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.15;min-height:48px}
+.btn.kb .nm{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .btn.kb small{font-size:10px;font-weight:700;opacity:.9}
 .btn.acc{background:var(--accent);color:var(--accent-fg)}
 .btn.quiet{background:var(--surface-2);color:var(--fg)}
@@ -274,8 +275,8 @@ function homeView(k){
   h+='<ul class="list">'+S.chores.map(function(c){
     var lab=S.parent?'あげる':'やった!';
     var btn='<span class="gives">'+S.kids.map(function(x){
-      if(!S.parent&&pendingFor(x.id,c.id))return '<button class="btn kb" disabled style="--k:'+esc(kidColor(x))+'">'+esc(x.name)+'<small>かくにんまち</small></button>';
-      return '<button class="btn kb" style="--k:'+esc(kidColor(x))+'" data-act="chore" data-id="'+esc(c.id)+'" data-kid="'+esc(x.id)+'">'+esc(x.name)+'<small>'+lab+'</small></button>'}).join('')+'</span>';
+      if(!S.parent&&pendingFor(x.id,c.id))return '<button class="btn kb" disabled style="--k:'+esc(kidColor(x))+'">'+'<span class="nm">'+esc(x.name)+'</span><small>かくにんまち</small></button>';
+      return '<button class="btn kb" style="--k:'+esc(kidColor(x))+'" data-act="chore" data-id="'+esc(c.id)+'" data-kid="'+esc(x.id)+'">'+'<span class="nm">'+esc(x.name)+'</span><small>'+lab+'</small></button>'}).join('')+'</span>';
     return '<li class="row"><span class="stamp">+'+(+c.points||0)+'<i>pt</i></span><span class="rt">'+esc(c.title)+'</span>'+btn+'</li>'}).join('')+'</ul>';
   var mine=S.reqs.length;
   if(!S.parent&&mine)h+='<p class="hint">おうちの人のかくにんを待っているよ('+mine+'件)</p>';
@@ -483,9 +484,12 @@ onAuthStateChanged(auth,function(u){
 /* ホーム画面用のアイコン(コインの絵)を、その場で作る */
 function icon(){try{
   var c=document.createElement('canvas');c.width=c.height=180;var x=c.getContext('2d');
-  x.fillStyle='#2B54F0';x.fillRect(0,0,180,180);
-  x.fillStyle='#FFC83D';x.beginPath();x.arc(90,90,56,0,Math.PI*2);x.fill();
-  x.fillStyle='#3A2A00';x.font='700 72px sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText('P',90,95);
+  x.fillStyle='#fff';x.fillRect(0,0,180,180);
+  x.strokeStyle='#111';x.fillStyle='#111';x.lineCap='round';x.lineJoin='round';
+  x.lineWidth=7;x.beginPath();x.arc(90,92,58,0,Math.PI*2);x.stroke();
+  x.lineWidth=2.5;x.setLineDash([1,8]);x.beginPath();x.arc(90,92,46,0,Math.PI*2);x.stroke();x.setLineDash([]);
+  x.lineWidth=8;x.beginPath();x.moveTo(66,64);x.lineTo(90,96);x.lineTo(114,64);x.moveTo(90,96);x.lineTo(90,127);x.moveTo(70,100);x.lineTo(110,100);x.moveTo(70,114);x.lineTo(110,114);x.stroke();
+  x.lineWidth=5;x.beginPath();x.moveTo(20,26);x.lineTo(34,38);x.moveTo(8,50);x.lineTo(24,54);x.moveTo(40,12);x.lineTo(44,28);x.stroke();
   var l=document.createElement('link');l.rel='apple-touch-icon';l.href=c.toDataURL('image/png');document.head.appendChild(l)}catch(e){}}
 
 S.sel=store('otm.kid');S.who=store('otm.who')==='kodomo'?'kodomo':'oya';
