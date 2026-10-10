@@ -126,6 +126,20 @@ label.l{font-size:12px;font-weight:900;color:var(--muted)}
 .badge{position:absolute;top:4px;left:calc(50% + 8px);width:11px;height:11px;border-radius:50%;background:#E5362B;box-shadow:0 0 0 2px var(--surface,#fff);font-size:0}
 #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:9;max-width:calc(100% - 32px);padding:10px 16px;border-radius:14px;background:var(--fg);color:var(--bg);font-weight:900;text-align:center}
 @media (prefers-reduced-motion:no-preference){.btn,.chip,.rd{transition:transform .08s}.btn:active,.rd:active{transform:scale(.96)}}
+
+#fx{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;background:rgba(20,28,51,.45);overflow:hidden;animation:fxin .25s ease-out}
+.fxcard{position:relative;z-index:1;background:var(--k);color:var(--ink,#fff);border-radius:28px;padding:26px 34px;text-align:center;box-shadow:0 14px 40px rgba(0,0,0,.3);animation:fxpop .55s cubic-bezier(.2,1.5,.4,1)}
+.fxcard p{margin:0}
+.fxt{font:700 30px/1.1 var(--display)}
+.fxn{margin-top:8px;font-weight:900;font-size:18px}
+.fxy{margin-top:12px;display:inline-block;padding:6px 14px;border-radius:16px;background:var(--coin);color:var(--coin-fg);font-weight:900;font-size:14px}
+.fxy b{font-family:var(--display);font-size:22px}
+.fxs{margin-top:12px;font-size:11px;opacity:.8}
+.cf{position:absolute;top:-20px;border-radius:2px;opacity:0;animation-name:cfall;animation-timing-function:linear;animation-fill-mode:forwards}
+@keyframes cfall{0%{opacity:1;translate:0 0}100%{opacity:1;translate:var(--dx,30px) 110vh}}
+@keyframes fxin{from{opacity:0}to{opacity:1}}
+@keyframes fxpop{from{transform:scale(.4);opacity:0}to{transform:scale(1);opacity:1}}
+@media (prefers-reduced-motion:reduce){.cf{display:none}.fxcard{animation:none}}
 </style>
 </head>
 <body>
@@ -478,7 +492,42 @@ function doLogin(){
 function byOrder(a,b){return (a.order||0)-(b.order||0)||String(a.title||a.name||'').localeCompare(String(b.title||b.name||''))}
 function list(s){return s.docs.map(function(d){var o=d.data()||{};o.id=d.id;return o})}
 function sub(name,q,fn){
-  return q.onSnapshot(function(s){fn(s);S.got[name]=true;render()},function(e){S.err=(e&&e.code)||'error';render()})}
+  return q.onSnapshot(function(s){fn(s);S.got[name]=true;try{rewardCheck()}catch(e){}render()},function(e){S.err=(e&&e.code)||'error';render()})}
+/* ---------- ごほうび演出: 交換単位に届いた瞬間 ---------- */
+function rewardCheck(){
+  if(!['kids','ledger','cfg'].every(function(n){return S.got[n]}))return;
+  var st=step(),cur2={};
+  S.kids.forEach(function(x){cur2[x.id]=Math.floor(Math.max(0,bal(x.id))/st)});
+  if(!S.rw||S.rw.st!==st){S.rw={st:st,u:cur2};return}
+  var hit=null;
+  S.kids.forEach(function(x){var p=S.rw.u[x.id];if(p!=null&&cur2[x.id]>p)hit=x});
+  S.rw.u=cur2;
+  if(hit)celebrate(hit)}
+function fanfare(){try{
+  var A=window.AudioContext||window.webkitAudioContext;if(!A)return;
+  if(!AC)AC=new A();if(AC.state==='suspended')AC.resume();
+  var t0=AC.currentTime+0.03;
+  [[523.25,0],[523.25,.12],[523.25,.24],[659.25,.36],[783.99,.5],[1046.5,.7]].forEach(function(n,i,a){
+    var last=i===a.length-1,dur=last?0.9:0.14;
+    [1,1.5].forEach(function(m,j){
+      if(j&&!last)return;
+      var o=AC.createOscillator(),g=AC.createGain(),t=t0+n[1];
+      o.type=j?'triangle':'square';o.frequency.setValueAtTime(n[0]*(j?1:1),t);
+      g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(j?0.05:0.08,t+0.015);
+      g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+      o.connect(g);g.connect(AC.destination);o.start(t);o.stop(t+dur+0.02)})})
+}catch(e){}}
+function celebrate(x){
+  var old=document.getElementById('fx');if(old)old.remove();
+  var yen=step()*rate(),el=document.createElement('div');el.id='fx';
+  var cols=['#FFC83D','#F7B0CF','#C4A8F5','#9ED6F2','#2B54F0','#E5483D','#2E8B3E'],h='';
+  for(var i=0;i<54;i++){
+    var l=Math.random()*100,d=Math.random()*0.9,du=2.2+Math.random()*1.8,w=6+Math.random()*7,r=Math.random()*360;
+    h+='<i class="cf" style="left:'+l.toFixed(1)+'%;width:'+w.toFixed(1)+'px;height:'+(w*1.6).toFixed(1)+'px;background:'+cols[i%cols.length]+';animation-delay:'+d.toFixed(2)+'s;animation-duration:'+du.toFixed(2)+'s;transform:rotate('+r.toFixed(0)+'deg)"></i>'}
+  el.innerHTML=h+'<div class="fxcard" style="'+kst(x)+'"><p class="fxt">おめでとう!</p><p class="fxn">'+esc(x.name)+'</p><p class="fxy"><b>'+yen+'</b>円 こうかんできるよ</p><p class="fxs">タップでとじる</p></div>';
+  el.addEventListener('click',function(){el.remove()});
+  document.body.appendChild(el);fanfare();
+  setTimeout(function(){if(el.parentNode)el.remove()},6000)}
 function stopSubs(){subs.forEach(function(u){try{u()}catch(e){}});subs=[]}
 function startSubs(){
   stopSubs();S.got={};S.err=null;
@@ -491,7 +540,7 @@ function startSubs(){
 
 onAuthStateChanged(auth,function(u){
   S.authReady=true;
-  if(!u){stopSubs();S.user=null;S.db=null;S.canEdit=false;S.parent=false;S.kids=[];S.chores=[];S.reqs=[];S.ledger=[];S.got={};S.err=null;S.tab='home';render(true);return}
+  if(!u){stopSubs();S.user=null;S.db=null;S.canEdit=false;S.parent=false;S.kids=[];S.chores=[];S.reqs=[];S.ledger=[];S.got={};S.err=null;S.rw=null;S.tab='home';render(true);return}
   S.user=u;
   S.canEdit=(u.email||'').toLowerCase()===PARENT_EMAIL;
   S.parent=S.canEdit&&store('otm.mode')!=='kid';
