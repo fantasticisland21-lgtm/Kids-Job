@@ -53,6 +53,20 @@ h2{margin:22px 0 10px;font-size:14px;font-weight:900;color:var(--muted);letter-s
 .bals{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
 .balance{--k:var(--accent);min-width:0;cursor:pointer;background-color:var(--k);background-image:radial-gradient(circle at 1px 1px,rgba(255,255,255,.24) 1.5px,transparent 0);background-size:14px 14px;color:#fff;border-radius:22px;padding:14px 14px 14px}
 .balance.sel{box-shadow:0 0 0 3px var(--bg),0 0 0 6px var(--k)}
+.goal{height:8px;border-radius:4px;background:rgba(255,255,255,.3);overflow:hidden;margin-top:12px}
+.goal i{display:block;height:100%;background:#fff;border-radius:4px}
+.balance .gl{margin-top:6px;font-size:11px;font-weight:700}
+.balance .gl b{font-family:var(--display);font-size:13px}
+.seg.full{margin-bottom:12px}
+.seg.full button{flex:1}
+.tbl{background:var(--surface);border-radius:18px;overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th{padding:10px 10px 6px;font-size:11px;font-weight:900;color:var(--muted);text-align:right}
+td{padding:10px;border-top:1px solid var(--line);text-align:right;font-family:var(--display);font-weight:600;white-space:nowrap}
+th:first-child,td:first-child{text-align:left;font-family:var(--body);font-weight:900}
+tr[data-act]{cursor:pointer}
+tr.sel td{background:var(--surface-2)}
+td.up{color:var(--plus)} td.dn{color:var(--minus)}
 .balance p{margin:0}
 .bl{font-weight:900;font-size:14px;opacity:.95}
 .num{display:flex;align-items:flex-end;gap:4px;margin-top:6px;font-family:var(--display);font-weight:700;font-size:48px;line-height:1;font-variant-numeric:tabular-nums}
@@ -158,7 +172,7 @@ var adapter={
 };
 
 var COLORS=['#E5483D','#0E8C88','#6B3FE0','#D9650F','#D6337F','#2E8B3E'];
-var S={kids:[],chores:[],reqs:[],ledger:[],cfg:{yenPerPoint:1,step:10},got:{},sel:null,tab:'home',parent:false,canEdit:false,db:null,err:null,xp:null,arm:null,busy:false,dirty:false,authReady:false,user:null,who:'oya',loginErr:''};
+var S={kids:[],chores:[],reqs:[],ledger:[],cfg:{yenPerPoint:1,step:10},got:{},sel:null,tab:'home',parent:false,canEdit:false,db:null,err:null,xp:null,arm:null,busy:false,dirty:false,authReady:false,user:null,who:'oya',loginErr:'',hv:'list',month:null};
 var subs=[];
 var view=document.getElementById('view'),tabsEl=document.getElementById('tabs'),modeEl=document.getElementById('mode'),toastEl=document.getElementById('toast');
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
@@ -210,10 +224,38 @@ function chips(k,noPts){
   return '<div class="chips">'+S.kids.map(function(x){
     return '<button class="chip'+(x.id===k.id?' on':'')+'" style="--k:'+esc(kidColor(x))+'" data-act="kid" data-id="'+esc(x.id)+'"><i></i>'+esc(x.name)+(noPts?'':'<b>'+bal(x.id)+'pt</b>')+'</button>'}).join('')+'</div>'}
 function balCard(x,sel){
-  var b=bal(x.id),st0=step(),units=Math.floor(b/st0);
-  var yenTxt=units>0?'<b>'+(units*st0*rate())+'</b>円 にこうかんできるよ':'あと <b>'+(st0-b)+'</b>pt で <b>'+(st0*rate())+'</b>円';
+  var b=bal(x.id),bb=Math.max(0,b),st0=step(),units=Math.floor(bb/st0),rem=bb%st0,pct=Math.round(rem/st0*100);
+  var yenTxt=units>0?'<b>'+(units*st0*rate())+'</b>円 にこうかんできるよ':'まだ こうかんできないよ';
   return '<div class="balance'+(sel?' sel':'')+'" role="button" tabindex="0" data-act="kid" data-id="'+esc(x.id)+'" style="--k:'+esc(kidColor(x))+'"><p class="bl">'+esc(x.name)+'</p>'
-   +'<p class="num">'+b+'<small>pt</small></p><span class="yen">'+yenTxt+'</span></div>'}
+   +'<p class="num">'+b+'<small>pt</small></p><span class="yen">'+yenTxt+'</span>'
+   +'<div class="goal" aria-hidden="true"><i style="width:'+pct+'%"></i></div>'
+   +'<p class="gl">つぎの <b>'+(st0*rate())+'</b>円まで あと <b>'+(st0-rem)+'</b>pt</p></div>'}
+
+function monthKey(ts){var d=new Date(ts);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')}
+function monthAgg(ents){
+  var by={};
+  ents.forEach(function(e){
+    var key=monthKey(e.ts||0),m=by[key]||(by[key]={earn:0,spent:0,yen:0,adj:0,chores:{}}),d=+e.delta||0;
+    if(e.kind==='exchange'){m.spent+=-d;m.yen+=(e.yen!=null?+e.yen:-d*rate())}
+    else if(e.kind==='adjust'){m.adj+=d}
+    else{m.earn+=d;var c=m.chores[e.label]||(m.chores[e.label]={n:0,pt:0});c.n++;c.pt+=d}
+  });
+  return by}
+function signed(v){return (v>=0?'+':'−')+Math.abs(v)}
+function monthBody(k){
+  var by=monthAgg(S.ledger.filter(function(e){return e.kid===k.id}));
+  var keys=Object.keys(by).sort().reverse().slice(0,12);
+  if(!keys.length)return '<p class="hint">まだ きろくがありません</p>';
+  if(!S.month||!by[S.month])S.month=keys[0];
+  var h='<div class="tbl"><table><thead><tr><th>つき</th><th>もらった</th><th>こうかん</th><th>わたした</th></tr></thead><tbody>'+keys.map(function(key){
+    var m=by[key],p=key.split('-'),v=m.earn+m.adj;
+    return '<tr class="'+(key===S.month?'sel':'')+'" data-act="month" data-v="'+key+'" role="button" tabindex="0"><td>'+p[0]+'年'+(+p[1])+'月</td><td class="'+(v>=0?'up':'dn')+'">'+signed(v)+'pt</td><td class="dn">'+(m.spent?'−'+m.spent+'pt':'0pt')+'</td><td>'+m.yen+'円</td></tr>'}).join('')+'</tbody></table></div>';
+  var m=by[S.month],p=S.month.split('-');
+  var items=Object.keys(m.chores).map(function(n){return {n:n,c:m.chores[n]}}).sort(function(a,b){return b.c.pt-a.c.pt});
+  var rows=items.map(function(it){return '<li class="row ent"><span class="rt">'+esc(it.n)+'<span class="d">'+it.c.n+'回</span></span><span class="delta '+(it.c.pt>=0?'p':'m')+'">'+signed(it.c.pt)+'</span></li>'}).join('')
+    +(m.adj?'<li class="row ent"><span class="rt">ちょうせい</span><span class="delta '+(m.adj>0?'p':'m')+'">'+signed(m.adj)+'</span></li>':'')
+    +(m.spent?'<li class="row ent"><span class="rt">お小遣いにこうかん<span class="d">'+m.yen+'円 わたした</span></span><span class="delta m">−'+m.spent+'</span></li>':'');
+  return h+'<h2>'+p[0]+'年'+(+p[1])+'月の ないわけ</h2><ul class="list">'+rows+'</ul>'}
 function pendingFor(kid,choreId){return S.reqs.some(function(r){return r.kid===kid&&r.kind==='chore'&&r.choreId===choreId})}
 
 function seedView(){
@@ -221,7 +263,7 @@ function seedView(){
   return '<p class="hint">おうちの人が、はじめの準備をするまで まっていてね。</p>'}
 
 function homeView(k){
-  var h=chips(k,true);
+  var h='';
   h+='<div class="bals">'+S.kids.map(function(x){return balCard(x,x.id===k.id)}).join('')+'</div>';
   h+='<h2>'+esc(k.name)+'の おてつだい</h2>';
   if(!S.chores.length){h+='<p class="hint">'+(S.parent?'「せってい」でおてつだいを追加してね':'おてつだいが まだ登録されていません')+'</p>';return h+logoutBtn()}
@@ -250,7 +292,8 @@ function exView(k){
   return h}
 
 function histView(k){
-  var h=chips(k),items=[];
+  var h=chips(k)+'<div class="seg full" role="group" aria-label="表示"><button data-act="hv" data-v="list" class="'+(S.hv==='month'?'':'on')+'">いちらん</button><button data-act="hv" data-v="month" class="'+(S.hv==='month'?'on':'')+'">つきごと</button></div>',items=[];
+  if(S.hv==='month')return h+monthBody(k);
   if(!S.parent){S.reqs.filter(function(r){return r.kid===k.id}).forEach(function(r){items.push({req:r,ts:r.ts||0})})}
   S.ledger.filter(function(e){return e.kid===k.id}).forEach(function(e){items.push({e:e,ts:e.ts||0})});
   items.sort(function(a,b){return b.ts-a.ts});
@@ -337,6 +380,8 @@ document.addEventListener('click',function(ev){
   if(act==='logout'){signOut(auth).catch(function(){});return}
   if(act==='tab'){S.tab=t.dataset.v;S.arm=null;render(true);window.scrollTo(0,0);return}
   if(act==='kid'){S.sel=id;store('otm.kid',id);S.xp=null;render(true);return}
+  if(act==='hv'){S.hv=t.dataset.v==='month'?'month':'list';render(true);return}
+  if(act==='month'){S.month=t.dataset.v;render(true);return}
   if(act==='mode'){S.parent=t.dataset.v==='parent';store('otm.mode',S.parent?'parent':'kid');S.tab='home';S.arm=null;render(true);return}
   if(act==='seed'&&S.db&&S.parent)return run(seedAll,'見本を作ったよ');
   if(!S.db||!k)return;
