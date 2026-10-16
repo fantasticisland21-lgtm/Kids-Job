@@ -5,10 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="おてつだい">
+<meta name="apple-mobile-web-app-title" content="Kids Job">
 <meta name="theme-color" content="#2B54F0">
 <meta name="color-scheme" content="light dark">
 <title>おてつだいポイント</title>
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=11">
+<link rel="icon" type="image/svg+xml" href="icon.svg?v=11">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
@@ -171,7 +173,7 @@ var firebaseConfig={
 };
 /* ログインに使う2つのアカウント(メールは本物でなくてOK)。
    Firebaseの「ルール」にも、同じ PARENT_EMAIL を書いてあります。 */
-var APP_VERSION='v10 (2026-10-16)';
+var APP_VERSION='v11 (2026-10-16)';
 var PARENT_EMAIL='oya@example.com';
 var KID_EMAIL='kodomo@example.com';
 
@@ -566,19 +568,8 @@ onAuthStateChanged(auth,function(u){
   S.db=adapter;
   startSubs();render(true)});
 
-/* ホーム画面用のアイコン(コインの絵)を、その場で作る */
-function icon(){try{
-  var c=document.createElement('canvas');c.width=c.height=180;var x=c.getContext('2d');
-  x.fillStyle='#fff';x.fillRect(0,0,180,180);
-  x.strokeStyle='#111';x.fillStyle='#111';x.lineCap='round';x.lineJoin='round';
-  x.lineWidth=7;x.beginPath();x.arc(90,92,58,0,Math.PI*2);x.stroke();
-  x.lineWidth=2.5;x.setLineDash([1,8]);x.beginPath();x.arc(90,92,46,0,Math.PI*2);x.stroke();x.setLineDash([]);
-  x.lineWidth=8;x.beginPath();x.moveTo(66,64);x.lineTo(90,96);x.lineTo(114,64);x.moveTo(90,96);x.lineTo(90,127);x.moveTo(70,100);x.lineTo(110,100);x.moveTo(70,114);x.lineTo(110,114);x.stroke();
-  x.lineWidth=5;x.beginPath();x.moveTo(20,26);x.lineTo(34,38);x.moveTo(8,50);x.lineTo(24,54);x.moveTo(40,12);x.lineTo(44,28);x.stroke();
-  var l=document.createElement('link');l.rel='apple-touch-icon';l.href=c.toDataURL('image/png');document.head.appendChild(l)}catch(e){}}
-
 S.sel=store('otm.kid');S.who=store('otm.who')==='kodomo'?'kodomo':'oya';
-icon();render(true);
+render(true);
 </script>
 </body>
 </html>
