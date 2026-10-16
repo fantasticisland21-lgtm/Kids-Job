@@ -94,7 +94,7 @@ td.up{color:var(--plus)} td.dn{color:var(--minus)}
 .btn.quiet{background:var(--surface-2);color:var(--fg)}
 .btn[disabled]{background:var(--surface-2);color:var(--muted);cursor:default}
 .btn.wide{width:100%;min-height:52px;font-size:16px}
-.ver{margin:-14px 0 0;text-align:center;color:var(--muted);font-size:11px;font-family:var(--display);opacity:.8}
+.ver{display:block;margin-top:1px;color:var(--muted);font-size:11px;font-weight:600;font-family:var(--display);letter-spacing:.02em}
 .btn.wide.armed{background:var(--minus);color:#fff}
 .hint{color:var(--muted);text-align:center;padding:24px 8px;margin:0}
 .err{color:var(--minus);font-weight:900;margin:0}
@@ -149,7 +149,7 @@ label.l{font-size:12px;font-weight:900;color:var(--muted)}
 <body>
 <div class="wrap" id="app">
   <header class="top">
-    <h1>おてつだいポイント</h1>
+    <h1>おてつだいポイント<span class="ver" id="ver"></span></h1>
     <div id="mode"></div>
   </header>
   <main id="view"><p class="hint">よみこみ中…</p></main>
@@ -173,7 +173,7 @@ var firebaseConfig={
 };
 /* ログインに使う2つのアカウント(メールは本物でなくてOK)。
    Firebaseの「ルール」にも、同じ PARENT_EMAIL を書いてあります。 */
-var APP_VERSION='v13 (2026-10-16)';
+var APP_VERSION='v14 (2026-10-16)';
 var PARENT_EMAIL='oya@example.com';
 var KID_EMAIL='kodomo@example.com';
 
@@ -257,7 +257,7 @@ function loginView(){
    +'<div class="stack"><label class="l" for="pw">パスワード</label><input class="in" id="pw" type="password" autocomplete="current-password" autocapitalize="off" autocorrect="off" enterkeyhint="go"></div>'
    +(S.loginErr?'<p class="err" role="alert">'+esc(S.loginErr)+'</p>':'')
    +'<button class="btn acc wide" data-act="login">ログイン</button></div>'
-   +'<p class="hint">いちど ログインすると、このiPhoneでは そのまま使えます。</p>'+verLine()}
+   +'<p class="hint">いちど ログインすると、このiPhoneでは そのまま使えます。</p>'}
 
 function chips(k,noPts){
   if(S.kids.length<2)return '';
@@ -316,8 +316,7 @@ function homeView(k){
   var mine=S.reqs.length;
   if(!S.parent&&mine)h+='<p class="hint">おうちの人のかくにんを待っているよ('+mine+'件)</p>';
   return h+logoutBtn()}
-function logoutBtn(){return '<p class="hint"><button class="ghost" data-act="logout">ログアウト</button></p>'+verLine()}
-function verLine(){return '<p class="ver">バージョン '+esc(APP_VERSION)+'</p>'}
+function logoutBtn(){return '<p class="hint"><button class="ghost" data-act="logout">ログアウト</button></p>'}
 
 function exView(k){
   var b=bal(k.id),pend=pendX(k.id),avail=Math.max(0,b-pend),st=step(),maxX=Math.floor(avail/st)*st;
@@ -568,6 +567,7 @@ onAuthStateChanged(auth,function(u){
   S.db=adapter;
   startSubs();render(true)});
 
+document.getElementById('ver').textContent=APP_VERSION;
 S.sel=store('otm.kid');S.who=store('otm.who')==='kodomo'?'kodomo':'oya';
 render(true);
 </script>
