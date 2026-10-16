@@ -92,6 +92,8 @@ td.up{color:var(--plus)} td.dn{color:var(--minus)}
 .btn.quiet{background:var(--surface-2);color:var(--fg)}
 .btn[disabled]{background:var(--surface-2);color:var(--muted);cursor:default}
 .btn.wide{width:100%;min-height:52px;font-size:16px}
+.ver{margin:-14px 0 0;text-align:center;color:var(--muted);font-size:11px;font-family:var(--display);opacity:.8}
+.btn.wide.armed{background:var(--minus);color:#fff}
 .hint{color:var(--muted);text-align:center;padding:24px 8px;margin:0}
 .err{color:var(--minus);font-weight:900;margin:0}
 .panel{background:var(--surface);border-radius:22px;padding:18px}
@@ -169,6 +171,7 @@ var firebaseConfig={
 };
 /* ログインに使う2つのアカウント(メールは本物でなくてOK)。
    Firebaseの「ルール」にも、同じ PARENT_EMAIL を書いてあります。 */
+var APP_VERSION='v10 (2026-10-16)';
 var PARENT_EMAIL='oya@example.com';
 var KID_EMAIL='kodomo@example.com';
 
@@ -252,7 +255,7 @@ function loginView(){
    +'<div class="stack"><label class="l" for="pw">パスワード</label><input class="in" id="pw" type="password" autocomplete="current-password" autocapitalize="off" autocorrect="off" enterkeyhint="go"></div>'
    +(S.loginErr?'<p class="err" role="alert">'+esc(S.loginErr)+'</p>':'')
    +'<button class="btn acc wide" data-act="login">ログイン</button></div>'
-   +'<p class="hint">いちど ログインすると、このiPhoneでは そのまま使えます。</p>'}
+   +'<p class="hint">いちど ログインすると、このiPhoneでは そのまま使えます。</p>'+verLine()}
 
 function chips(k,noPts){
   if(S.kids.length<2)return '';
@@ -311,7 +314,8 @@ function homeView(k){
   var mine=S.reqs.length;
   if(!S.parent&&mine)h+='<p class="hint">おうちの人のかくにんを待っているよ('+mine+'件)</p>';
   return h+logoutBtn()}
-function logoutBtn(){return '<p class="hint"><button class="ghost" data-act="logout">ログアウト</button></p>'}
+function logoutBtn(){return '<p class="hint"><button class="ghost" data-act="logout">ログアウト</button></p>'+verLine()}
+function verLine(){return '<p class="ver">バージョン '+esc(APP_VERSION)+'</p>'}
 
 function exView(k){
   var b=bal(k.id),pend=pendX(k.id),avail=Math.max(0,b-pend),st=step(),maxX=Math.floor(avail/st)*st;
@@ -345,7 +349,8 @@ function histView(k){
 function okView(){
   if(!S.reqs.length)return '<p class="hint">かくにん待ちはありません</p>';
   var list=S.reqs.slice().sort(function(a,b){return (a.ts||0)-(b.ts||0)});
-  return '<h2>かくにん待ち</h2><ul class="list">'+list.map(function(r){
+  var all=list.length>=2?'<button class="btn acc wide'+(S.arm==='all'?' armed':'')+'" data-act="okall" style="margin-top:4px">'+(S.arm==='all'?'もういちど おすと ぜんぶOK':'ぜんぶOK('+list.length+'件)')+'</button>':'';
+  return '<h2>かくにん待ち</h2>'+all+'<ul class="list"'+(all?' style="margin-top:12px"':'')+'>'+list.map(function(r){
     var k=kidById(r.kid),ex=r.kind==='exchange';
     var txt=ex?'お小遣いにこうかん ('+((+r.points||0)*rate())+'円)':r.label;
     return '<li class="row ent" style="--k:'+esc(kidColor(k))+'"><span class="rt"><span class="k"></span>'+esc(k?k.name:'?')+'<small>'+esc(txt)+' ・ '+fmt(r.ts||0)+'</small></span>'
@@ -443,6 +448,20 @@ document.addEventListener('click',function(ev){
       var p=+r.points||0;
       var w=r.kind==='exchange'?addLedger(r.id,r.kid,-p,'exchange','お小遣いにこうかん',{yen:p*rate()}):addLedger(r.id,r.kid,p,'earn',r.label);
       return w.then(function(){return S.db.doc('requests/'+id).delete()})},'OKにしたよ')}
+  if(act==='okall'){
+    if(!armed('all'))return;
+    var bl={},todo=[],skip=0;
+    S.reqs.slice().sort(function(a,b){return (a.ts||0)-(b.ts||0)}).forEach(function(r){
+      if(!kidById(r.kid))return;
+      var p=+r.points||0;if(bl[r.kid]==null)bl[r.kid]=bal(r.kid);
+      if(r.kind==='exchange'){if(bl[r.kid]<p){skip++;return}bl[r.kid]-=p}else bl[r.kid]+=p;
+      todo.push(r)});
+    if(!todo.length){toast('ポイントがたりません');return}
+    return run(function(){return todo.reduce(function(pr,r){return pr.then(function(){
+      var p=+r.points||0;
+      var w=r.kind==='exchange'?addLedger(r.id,r.kid,-p,'exchange','お小遣いにこうかん',{yen:p*rate()}):addLedger(r.id,r.kid,p,'earn',r.label);
+      return w.then(function(){return S.db.doc('requests/'+r.id).delete()})})},Promise.resolve())},
+      todo.length+'件 OKにしたよ'+(skip?'('+skip+'件はポイントがたりないので のこしたよ)':''))}
   if(act==='undo'){if(armed('u'+id))return run(function(){return S.db.doc('ledger/'+id).delete()},'けしたよ');return}
   if(act==='kcolor'){var kk=kidById(id);if(!kk)return;var i=COLORS.indexOf(kidColor(kk));return run(function(){return S.db.doc('kids/'+id).update({color:COLORS[(i+1)%COLORS.length]})})}
   if(act==='cdel'){if(armed('c'+id))return run(function(){return S.db.doc('chores/'+id).delete()},'さくじょしたよ');return}
