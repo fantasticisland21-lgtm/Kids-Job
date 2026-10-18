@@ -213,7 +213,7 @@ var firebaseConfig={
 };
 /* ログインに使う2つのアカウント(メールは本物でなくてOK)。
    Firebaseの「ルール」にも、同じ PARENT_EMAIL を書いてあります。 */
-var APP_VERSION='v10.7';
+var APP_VERSION='v10.8';
 var PARENT_EMAIL='oya@example.com';
 var KID_EMAIL='kodomo@example.com';
 
@@ -240,6 +240,8 @@ var adapter={
 var COLORS=['#E5483D','#0E8C88','#6B3FE0','#D9650F','#D6337F','#2E8B3E','#C4A8F5','#F7B0CF','#9ED6F2'];
 var AC=null;
 function levelUp(){try{
+  /* iPhoneのマナーモード(消音スイッチ)でも鳴るようにする(対応しているSafariだけ) */
+  try{if(navigator.audioSession)navigator.audioSession.type='playback'}catch(e){}
   var A=window.AudioContext||window.webkitAudioContext;if(!A)return;
   if(!AC)AC=new A();if(AC.state==='suspended')AC.resume();
   var t0=AC.currentTime+0.02,notes=[523.25,659.25,783.99,1046.5,1318.5];
@@ -483,9 +485,9 @@ document.addEventListener('click',function(ev){
   if(act==='mode'){S.parent=t.dataset.v==='parent';store('otm.mode',S.parent?'parent':'kid');S.tab='home';S.arm=null;render(true);return}
   if(act==='seed'&&S.db&&S.parent)return run(seedAll,'見本を作ったよ');
   if(!S.db||!k)return;
-  if(act==='chore'&&!S.parent)levelUp();
   if(act==='chore'){
     c=S.chores.find(function(x){return x.id===id});if(!c)return;
+    if(!(S.parent&&cMax(c)))levelUp();
     var gk=kidById(t.dataset.kid)||k;
     if(S.parent&&cMax(c)){S.give=(S.give&&S.give.cid===c.id&&S.give.kid===gk.id)?null:{cid:c.id,kid:gk.id,v:+c.points||0};render(true);return}
     if(S.parent)return run(function(){return addLedger(null,gk.id,+c.points,'earn',c.title)},gk.name+'に '+c.points+'pt あげたよ');
@@ -505,7 +507,7 @@ document.addEventListener('click',function(ev){
   if(act==='gx'){S.give=null;render(true);return}
   if(act==='gok'){
     var g=S.give;if(!g)return;var gc2=S.chores.find(function(x){return x.id===g.cid}),gk2=kidById(g.kid);if(!gc2||!gk2){S.give=null;render(true);return}
-    var gv=g.v;S.give=null;
+    var gv=g.v;S.give=null;levelUp();
     return run(function(){return addLedger(null,gk2.id,gv,'earn',gc2.title)},gk2.name+'に '+gv+'pt あげたよ')}
   if(act==='cancel')return run(function(){return S.db.doc('requests/'+id).delete()},'とりけしたよ');
   if(act==='ng')return run(function(){return S.db.doc('requests/'+id).delete()},'もどしたよ');
