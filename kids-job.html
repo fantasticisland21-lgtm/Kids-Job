@@ -191,6 +191,16 @@ th,th:first-child,td:first-child{font-weight:600}
 .btn.kb[disabled] small{font-size:11px}
 .stepper button.rd[disabled]{opacity:.35;cursor:default}
 .stamp.f{font-size:13px;line-height:1.05}
+/* v10.11: 子どもが読む小さい文字を大きく */
+.tab{font-size:12px}
+.btn.kb .nm{font-size:12px}
+.balance .gl{font-size:12px}
+.yen{font-size:12px}
+.stamp i{font-size:11px}
+.tag,th,.fxs{font-size:12px}
+.mini{font-size:13px}
+/* v10.11: iPadでは幅を広げる */
+@media (min-width:700px){.wrap,.tabs nav{max-width:660px}}
 .wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .tabs{padding-left:max(8px,env(safe-area-inset-left,0px));padding-right:max(8px,env(safe-area-inset-right,0px))}
 </style>
@@ -209,7 +219,7 @@ th,th:first-child,td:first-child{font-weight:600}
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/13.0.0/firebase-app.js";
 import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut} from "https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js";
-import {getFirestore,collection,doc,onSnapshot,addDoc,setDoc,updateDoc,deleteDoc,runTransaction} from "https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js";
+import {getFirestore,collection,doc,onSnapshot,addDoc,setDoc,updateDoc,deleteDoc,runTransaction,query,orderBy,limit,writeBatch,increment,FieldPath} from "https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js";
 
 /* ---------- Firebase 設定 ---------- */
 var firebaseConfig={
@@ -222,7 +232,7 @@ var firebaseConfig={
 };
 /* ログインに使う2つのアカウント(メールは本物でなくてOK)。
    Firebaseの「ルール」にも、同じ PARENT_EMAIL を書いてあります。 */
-var APP_VERSION='v10.10';
+var APP_VERSION='v10.11';
 var PARENT_EMAIL='oya@example.com';
 var KID_EMAIL='kodomo@example.com';
 
@@ -246,6 +256,9 @@ var adapter={
   doc:function(path){var a=path.split('/');return docApi(doc(fs,a[0],a[1]))}
 };
 
+var XLAB='おこづかいに こうかん';
+/* 前のバージョンで保存した文字も、ひらがなで出す */
+function lab(t){return String(t==null?'':t).replace('お小遣いにこうかん',XLAB)}
 var COLORS=['#E5483D','#0E8C88','#6B3FE0','#D9650F','#D6337F','#2E8B3E','#C4A8F5','#F7B0CF','#9ED6F2'];
 var AC=null;
 function levelUp(){try{
@@ -271,7 +284,9 @@ function fmt(ts){var d=new Date(ts);return (d.getMonth()+1)+'/'+d.getDate()+' '+
 function kidColor(k){return (k&&k.color)||COLORS[0]}
 function kidById(id){return S.kids.find(function(k){return k.id===id})}
 function cur(){return S.kids.length?(kidById(S.sel)||S.kids[0]):null}
-function bal(id){return S.ledger.reduce(function(a,e){return e.kid===id?a+(+e.delta||0):a},0)}
+/* 残高: 子どものデータ(kids)に持っている合計を使う。まだ移していないときは、きろくを全部たす */
+function bal(id){var k=kidById(id);if(k&&k.agg===1)return +k.bal||0;return S.ledger.reduce(function(a,e){return e.kid===id?a+(+e.delta||0):a},0)}
+function aggReady(){return S.kids.length>0&&S.kids.every(function(k){return k.agg===1})}
 function pendX(id){return S.reqs.filter(function(r){return r.kid===id&&r.kind==='exchange'}).reduce(function(a,r){return a+(+r.points||0)},0)}
 function rate(){return Math.max(1,int(S.cfg.yenPerPoint,1))}
 function step(){return Math.max(1,int(S.cfg.step,10))}
@@ -285,9 +300,9 @@ var ICONS={
 };
 function toast(t){toastEl.textContent=t;toastEl.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(function(){toastEl.hidden=true},2600)}
 function errText(e){var c=e&&e.code;
-  if(c==='permission-denied')return 'このアカウントでは操作できません';
-  if(c==='resource-exhausted')return '今日の無料の上限に近づいています。あしたまた試してね';
-  if(c==='unavailable'||c==='deadline-exceeded')return 'つながりませんでした。もう一度ためしてね';
+  if(c==='permission-denied')return 'このアカウントでは できません';
+  if(c==='resource-exhausted')return 'きょうは たくさん つかったので、あした また ためしてね';
+  if(c==='unavailable'||c==='deadline-exceeded')return 'つながりませんでした。もういちど ためしてね';
   if(c==='gone')return 'もう とりけされていました';
   return 'うまくいきませんでした'}
 /* ボタンからの保存。終わるまで次のボタンは待たせる。電波が弱くて6秒たっても終わらないときは、待たせるのをやめる */
@@ -310,7 +325,7 @@ function loginView(){
    +'<div class="stack"><label class="l" for="kagi">パスワード</label><input class="in kagi" id="kagi" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" data-1p-ignore data-lpignore="true" data-form-type="other"></div>'
    +(S.loginErr?'<p class="err" role="alert">'+esc(S.loginErr)+'</p>':'')
    +'<button class="btn acc wide" data-act="login">ログイン</button></div>'
-   +'<p class="hint">いちど ログインすると、このiPhoneでは そのまま使えます。</p>'}
+   +'<p class="hint">いちど ログインすると、このきかいでは そのまま つかえるよ。</p>'}
 
 function chips(k,noPts){
   if(S.kids.length<2)return '';
@@ -336,19 +351,20 @@ function monthAgg(ents){
   return by}
 function signed(v){return (v>=0?'+':'−')+Math.abs(v)}
 function monthBody(k){
-  var by=monthAgg(S.ledger.filter(function(e){return e.kid===k.id}));
-  var keys=Object.keys(by).sort().reverse().slice(0,12);
+  var by=k.agg===1?(k.mon||{}):monthAgg(S.ledger.filter(function(e){return e.kid===k.id}));
+  Object.keys(by).forEach(function(key){var m=by[key]||{};by[key]={earn:+m.earn||0,spent:+m.spent||0,yen:+m.yen||0,adj:+m.adj||0,chores:m.chores||{}}});
+  var keys=Object.keys(by).filter(function(key){var m=by[key]||{};return m.earn||m.spent||m.adj||m.yen}).sort().reverse().slice(0,12);
   if(!keys.length)return '<p class="hint">まだ きろくがありません</p>';
-  if(!S.month||!by[S.month])S.month=keys[0];
+  if(!S.month||keys.indexOf(S.month)<0)S.month=keys[0];
   var h='<div class="tbl"><table><thead><tr><th>つき</th><th>もらった</th><th>こうかん</th><th>わたした</th></tr></thead><tbody>'+keys.map(function(key){
     var m=by[key],p=key.split('-'),v=m.earn+m.adj;
     return '<tr class="'+(key===S.month?'sel':'')+'" data-act="month" data-v="'+key+'" role="button" tabindex="0"><td>'+p[0]+'年'+(+p[1])+'月</td><td class="'+(v>=0?'up':'dn')+'">'+signed(v)+'pt</td><td class="dn">'+(m.spent?'−'+m.spent+'pt':'0pt')+'</td><td>'+m.yen+'円</td></tr>'}).join('')+'</tbody></table></div>';
   var m=by[S.month],p=S.month.split('-');
-  var items=Object.keys(m.chores).map(function(n){return {n:n,c:m.chores[n]}}).sort(function(a,b){return b.c.pt-a.c.pt});
+  var items=Object.keys(m.chores).filter(function(n){return (+m.chores[n].n||0)>0}).map(function(n){return {n:n,c:m.chores[n]}}).sort(function(a,b){return b.c.pt-a.c.pt});
   var rows=items.map(function(it){return '<li class="row ent"><span class="rt">'+esc(it.n)+'<span class="d">'+it.c.n+'回</span></span><span class="delta '+(it.c.pt>=0?'p':'m')+'">'+signed(it.c.pt)+'</span></li>'}).join('')
     +(m.adj?'<li class="row ent"><span class="rt">ちょうせい</span><span class="delta '+(m.adj>0?'p':'m')+'">'+signed(m.adj)+'</span></li>':'')
-    +(m.spent?'<li class="row ent"><span class="rt">お小遣いにこうかん<span class="d">'+m.yen+'円 わたした</span></span><span class="delta m">−'+m.spent+'</span></li>':'');
-  return h+'<h2>'+p[0]+'年'+(+p[1])+'月の ないわけ</h2><ul class="list">'+rows+'</ul>'}
+    +(m.spent?'<li class="row ent"><span class="rt">'+XLAB+'<span class="d">'+m.yen+'円 わたした</span></span><span class="delta m">−'+m.spent+'</span></li>':'');
+  return h+'<h2>'+p[0]+'年'+(+p[1])+'月の うちわけ</h2><ul class="list">'+rows+'</ul>'}
 /* ポイントが変わるおてつだい(points=いちばん少ない, max=いちばん多い) */
 function cMax(c){var m=+(c&&c.max)||0,p=+(c&&c.points)||0;return m>p?m:0}
 function cStep(c){var a=+c.points||0,b=cMax(c);return (a%10===0&&b%10===0)?10:(a%5===0&&b%5===0)?5:1}
@@ -373,13 +389,13 @@ function pendingFor(kid,choreId){return S.reqs.some(function(r){return r.kid===k
 
 function seedView(){
   if(S.parent)return '<div class="panel stack"><p class="rt">はじめの準備</p><p style="margin:0">子ども2人と、おてつだい5つの見本を作ります。名前やポイントは、あとで「せってい」から変えられます。</p><button class="btn acc wide" data-act="seed">見本を作る</button></div>';
-  return '<p class="hint">おうちの人が、はじめの準備をするまで まっていてね。</p>'}
+  return '<p class="hint">おうちのひとが じゅんびするまで まっていてね。</p>'}
 
 function homeView(k){
   var h='';
   h+='<div class="bals">'+S.kids.map(function(x){return balCard(x,false)}).join('')+'</div>';
   h+='<h2>おてつだい</h2>';
-  if(!S.chores.length){h+='<p class="hint">'+(S.parent?'「せってい」でおてつだいを追加してね':'おてつだいが まだ登録されていません')+'</p>';return h+logoutBtn()}
+  if(!S.chores.length){h+='<p class="hint">'+(S.parent?'「せってい」でおてつだいを追加してね':'おてつだいが まだ ないよ')+'</p>';return h+logoutBtn()}
   h+='<ul class="list">'+S.chores.map(function(c){
     var lab=S.parent?'あげる':'やった!';
     var btn='<span class="gives">'+S.kids.map(function(x){
@@ -392,7 +408,7 @@ function homeView(k){
        +'<div class="qk"><button class="btn quiet" data-act="gx">やめる</button><button class="btn acc" data-act="gok">'+g.v+'pt あげる</button></div></li>'}
     return row}).join('')+'</ul>';
   var mine=S.reqs.length;
-  if(!S.parent&&mine)h+='<p class="hint">おうちの人のかくにんを待っているよ('+mine+'件)</p>';
+  if(!S.parent&&mine)h+='<p class="hint">おうちのひとの かくにんを まっているよ('+mine+'件)</p>';
   return h+logoutBtn()}
 function logoutBtn(){return '<p class="hint"><button class="ghost" data-act="logout">ログアウト</button></p>'}
 
@@ -405,8 +421,8 @@ function exView(k){
    +'<div class="stepper"><button class="rd" data-act="xp" data-d="-'+st+'" aria-label="へらす"'+(xp<=st?' disabled':'')+'>−</button>'
    +'<output>'+xp+'<small>pt</small></output><button class="rd" data-act="xp" data-d="'+st+'" aria-label="ふやす"'+(xp>=maxX?' disabled':'')+'>＋</button></div>'
    +(maxX>0?'<p class="conv">= <b>'+(xp*r)+'</b>円</p>':'<p class="conv">'+st+'pt たまると '+(st*r)+'円 にこうかんできるよ</p>')
-   +'<div class="actions"><button class="btn quiet" data-act="xmax">ぜんぶ</button><button class="btn acc wide" data-act="xgo"'+(xp<=0?' disabled':'')+'>'+(S.parent?'こうかんしてわたす':'お小遣いにこうかんしたい')+'</button></div></div>';
-  if(!S.parent)h+='<p class="hint">おしたら おうちの人にしらせが とどくよ。わたしてもらうまで、ポイントはへらないよ。</p>';
+   +'<div class="actions"><button class="btn quiet" data-act="xmax">ぜんぶ</button><button class="btn acc wide" data-act="xgo"'+(xp<=0?' disabled':'')+'>'+(S.parent?'こうかんしてわたす':'おこづかいに こうかんしたい')+'</button></div></div>';
+  if(!S.parent)h+='<p class="hint">おしたら おうちのひとに しらせが とどくよ。わたしてもらうまで、ポイントはへらないよ。</p>';
   return h}
 
 function histView(k){
@@ -418,11 +434,12 @@ function histView(k){
   if(!items.length)return h+'<p class="hint">まだ きろくがありません</p>';
   h+='<ul class="list">'+items.slice(0,80).map(function(it){
     if(it.req){var r=it.req;
-      return '<li class="row ent"><span class="rt"><span class="tag">かくにんまち</span>'+esc(r.kind==='exchange'?'お小遣いにこうかん':r.label)+'<span class="d">'+fmt(it.ts)+'</span></span>'
+      return '<li class="row ent"><span class="rt"><span class="tag">かくにんまち</span>'+esc(r.kind==='exchange'?XLAB:r.label)+'<span class="d">'+fmt(it.ts)+'</span></span>'
         +'<span class="delta">'+(r.kind==='exchange'?'−':'+')+(+r.points||0)+'</span><button class="ghost" data-act="cancel" data-id="'+esc(r.id)+'">とりけす</button></li>'}
     var e=it.e,p=e.delta>=0,note=e.kind==='exchange'&&e.yen!=null?' ('+e.yen+'円)':'';
     var undo=S.parent?'<button class="ghost'+(S.arm==='u'+e.id?' armed':'')+'" data-act="undo" data-id="'+esc(e.id)+'">'+(S.arm==='u'+e.id?'ほんとう?':'けす')+'</button>':'';
-    return '<li class="row ent"><span class="rt">'+esc(e.label)+esc(note)+'<span class="d">'+fmt(it.ts)+'</span></span><span class="delta '+(p?'p':'m')+'">'+(p?'+':'−')+Math.abs(+e.delta||0)+'</span>'+undo+'</li>'}).join('')+'</ul>';
+    return '<li class="row ent"><span class="rt">'+esc(lab(e.label))+esc(note)+'<span class="d">'+fmt(it.ts)+'</span></span><span class="delta '+(p?'p':'m')+'">'+(p?'+':'−')+Math.abs(+e.delta||0)+'</span>'+undo+'</li>'}).join('')+'</ul>';
+  if(S.ledgerMode==='recent'&&S.ledger.length>=LEDGER_N)h+='<p class="hint">さいきんの きろくだけ でているよ。むかしの分は「つきごと」で みてね。</p>';
   return h}
 
 function okView(){
@@ -431,7 +448,7 @@ function okView(){
   var all=list.length>=2?'<button class="btn acc wide'+(S.arm==='all'?' armed':'')+'" data-act="okall" style="margin-top:4px">'+(S.arm==='all'?'もういちど おすと ぜんぶOK':'ぜんぶOK('+list.length+'件)')+'</button>':'';
   return '<h2>かくにん待ち</h2>'+all+'<ul class="list"'+(all?' style="margin-top:12px"':'')+'>'+list.map(function(r){
     var k=kidById(r.kid),ex=r.kind==='exchange',cf=choreOf(r);if(cf&&!cMax(cf))cf=null;
-    var cc=choreOf(r),txt=ex?'お小遣いにこうかん ('+(reqPts(r)*rate())+'円)':(cc?cc.title:r.label);
+    var cc=choreOf(r),txt=ex?XLAB+' ('+(reqPts(r)*rate())+'円)':(cc?cc.title:r.label);
     return '<li class="row ent" style="--k:'+esc(kidColor(k))+'"><span class="rt"><span class="k"></span>'+esc(k?k.name:'?')+'<small>'+esc(txt)+' ・ '+fmt(r.ts||0)+'</small></span>'
      +'<span class="delta '+(ex?'m':'p')+'">'+(okPts(r)==null?'?':(ex?'−':'+')+reqPts(r))+'</span>'
      +'<span class="actions"><button class="btn" data-act="ok" data-id="'+esc(r.id)+'" aria-label="OK">OK</button><button class="ghost" data-act="ng" data-id="'+esc(r.id)+'">ちがう</button></span></li>'
@@ -473,7 +490,7 @@ function render(force){
     var n=t[0]==='ok'?S.reqs.length:0;
     return '<button class="tab'+(S.tab===t[0]?' on':'')+'" data-act="tab" data-v="'+t[0]+'"><svg viewBox="0 0 24 24" aria-hidden="true">'+ICONS[t[0]]+'</svg>'+t[1]+(n?'<span class="badge" aria-label="かくにんまちあり"></span>':'')+'</button>'}).join('');
   var h;
-  if(S.err)h='<p class="hint">データを読み込めませんでした。ログインし直すか、ページを開き直してください。</p>'+logoutBtn();
+  if(S.err)h='<p class="hint">よみこめませんでした。ログインしなおすか、ひらきなおしてね。</p>'+logoutBtn();
   else if(!ready)h='<p class="hint">よみこみ中…</p>';
   else if(!k)h=seedView()+logoutBtn();
   else h=S.tab==='home'?homeView(k):S.tab==='ex'?exView(k):S.tab==='hist'?histView(k):S.tab==='ok'?okView():setView();
@@ -487,23 +504,47 @@ function keepPut(){KEEP.forEach(function(id){var e=document.getElementById(id),v
   if(e.tagName==='SELECT'&&!Array.prototype.some.call(e.options,function(o){return o.value===v}))return;e.value=v})}
 
 /* ---------- writes ---------- */
+/* きろく1件ぶんを、子どものデータの合計(残高・月ごと)に足す/引く。s=1で足す、-1で引く */
+function aggPairs(e,s){
+  var key=monthKey(e.ts||0),d=+e.delta||0,a=[[new FieldPath('bal'),s*d]];
+  function m(){return new FieldPath('mon',key,...arguments)}
+  if(e.kind==='exchange'){a.push([m('spent'),s*(-d)],[m('yen'),s*(e.yen!=null?+e.yen:-d*rate())])}
+  else if(e.kind==='adjust'){a.push([m('adj'),s*d])}
+  else{var l=String(e.label||'おてつだい');a.push([m('earn'),s*d],[m('chores',l,'n'),s],[m('chores',l,'pt'),s*d])}
+  return a}
+function applyAgg(w,e,s){var k=kidById(e.kid);if(!k||k.agg!==1)return;
+  var args=[doc(fs,'kids',e.kid)];aggPairs(e,s).forEach(function(x){args.push(x[0],increment(x[1]))});w.update.apply(w,args)}
 function addLedger(id,kid,delta,kind,label,extra){
   var data=Object.assign({kid:kid,delta:delta,kind:kind,label:label,ts:Date.now()},extra||{});
-  var col=S.db.collection('ledger');
-  return id?col.doc(id).set(data):col.add(data)}
+  var ref=id?doc(fs,'ledger',id):doc(collection(fs,'ledger'));
+  var b=writeBatch(fs);b.set(ref,data);applyAgg(b,data,1);return b.commit()}
+/* きろくを消す(残高も一緒に戻す)。2台で同時に消しても二重に引かない */
+function removeLedger(id){
+  var ref=doc(fs,'ledger',id);
+  return runTransaction(fs,function(tx){return tx.get(ref).then(function(s){
+    if(!s.exists())return;var e=s.data();tx.delete(ref);applyAgg(tx,e,-1)})})}
+/* はじめの1回だけ: 今までのきろくから、子どもごとの残高と月ごとの合計を作る(おとなの端末で自動) */
+function maybeMigrate(){
+  if(!S.canEdit||S.migrating||S.ledgerMode!=='full'||!S.got.ledger||!S.got.kids||!S.got.cfg||!S.kids.length||aggReady())return;
+  S.migrating=true;
+  var b=writeBatch(fs);
+  S.kids.forEach(function(k){if(k.agg===1)return;
+    var ents=S.ledger.filter(function(e){return e.kid===k.id});
+    b.update(doc(fs,'kids',k.id),{bal:ents.reduce(function(a,e){return a+(+e.delta||0)},0),mon:monthAgg(ents),agg:1})});
+  b.commit().catch(function(){}).then(function(){S.migrating=false})}
 /* お願いをOKにする: お願いがまだあるか確かめてから、きろくを書いて、お願いを消す(まとめて1回で) */
 function approve(r,p){
   var reqRef=doc(fs,'requests',r.id),ledRef=doc(fs,'ledger',r.id),c=choreOf(r);
-  var data=r.kind==='exchange'?{kid:r.kid,delta:-p,kind:'exchange',label:'お小遣いにこうかん',yen:p*rate(),ts:Date.now()}
+  var data=r.kind==='exchange'?{kid:r.kid,delta:-p,kind:'exchange',label:XLAB,yen:p*rate(),ts:Date.now()}
     :{kid:r.kid,delta:p,kind:'earn',label:c?c.title:String(r.label||'おてつだい'),ts:Date.now()};
   return runTransaction(fs,function(tx){return tx.get(reqRef).then(function(s){
     if(!s.exists()){var e=new Error('gone');e.code='gone';throw e}
-    tx.set(ledRef,data);tx.delete(reqRef)})}).then(function(){delete S.rp[r.id]})}
+    tx.set(ledRef,data);applyAgg(tx,data,1);tx.delete(reqRef)})}).then(function(){delete S.rp[r.id]})}
 function saveCfg(patch){return S.db.doc('settings/main').set(Object.assign({yenPerPoint:rate(),step:step()},patch))}
 function seedAll(){
   var db=S.db,w=[],hasChores=S.chores.length>0,hasCfg=S.cfgExists;
-  w.push(function(){return db.collection('kids').doc('k1').set({name:'こども1',color:COLORS[0],order:1})});
-  w.push(function(){return db.collection('kids').doc('k2').set({name:'こども2',color:COLORS[1],order:2})});
+  w.push(function(){return db.collection('kids').doc('k1').set({name:'こども1',color:COLORS[0],order:1,agg:1,bal:0,mon:{}})});
+  w.push(function(){return db.collection('kids').doc('k2').set({name:'こども2',color:COLORS[1],order:2,agg:1,bal:0,mon:{}})});
   if(!hasChores)[['c1','おさらをはこぶ',5],['c2','せんたくものをたたむ',10],['c3','ゴミだし',10],['c4','おふろそうじ',20],['c5','くつをそろえる',3]].forEach(function(c,i){
     w.push(function(){return db.collection('chores').doc(c[0]).set({title:c[1],points:c[2],order:i+1})})});
   if(!hasCfg)w.push(function(){return db.doc('settings/main').set({yenPerPoint:1,step:10})});
@@ -529,14 +570,14 @@ document.addEventListener('click',function(ev){
     var gk=kidById(t.dataset.kid)||k;
     if(S.parent&&cMax(c)){S.give=(S.give&&S.give.cid===c.id&&S.give.kid===gk.id)?null:{cid:c.id,kid:gk.id,v:+c.points||0};render(true);return}
     if(S.parent)return run(function(){return addLedger(null,gk.id,+c.points,'earn',c.title)},gk.name+'に '+c.points+'pt あげたよ');
-    return run(function(){return S.db.collection('requests').add({kid:gk.id,kind:'chore',choreId:c.id,label:c.title,points:+c.points,ts:Date.now()})},'おうちの人に知らせたよ')}
+    return run(function(){return S.db.collection('requests').add({kid:gk.id,kind:'chore',choreId:c.id,label:c.title,points:+c.points,ts:Date.now()})},'おうちのひとに しらせたよ')}
   if(act==='xp'){var av=Math.max(0,bal(k.id)-pendX(k.id)),stp=step(),mx=Math.floor(av/stp)*stp;S.xp=Math.max(Math.min(stp,mx),Math.min(mx,(S.xp||0)+int(t.dataset.d,0)));render(true);return}
   if(act==='xmax'){var av2=Math.max(0,bal(k.id)-pendX(k.id));S.xp=av2-(av2%step());render(true);return}
   if(act==='xgo'){
     var pts=S.xp||0,av3=Math.max(0,bal(k.id)-pendX(k.id));
     if(pts<=0||pts>av3||pts%step()!==0){toast(step()+'ptずつ こうかんできるよ');return}
-    if(S.parent)return run(function(){return addLedger(null,k.id,-pts,'exchange','お小遣いにこうかん',{yen:pts*rate()})},pts*rate()+'円 わたしたよ').then(function(v){if(v){S.xp=null;render(true)}});
-    return run(function(){return S.db.collection('requests').add({kid:k.id,kind:'exchange',points:pts,yen:pts*rate(),label:'お小遣いにこうかん',ts:Date.now()})},'おうちの人に知らせたよ').then(function(v){if(v){S.xp=null;render(true)}})}
+    if(S.parent)return run(function(){return addLedger(null,k.id,-pts,'exchange',XLAB,{yen:pts*rate()})},pts*rate()+'円 わたしたよ').then(function(v){if(v){S.xp=null;render(true)}});
+    return run(function(){return S.db.collection('requests').add({kid:k.id,kind:'exchange',points:pts,yen:pts*rate(),label:XLAB,ts:Date.now()})},'おうちのひとに しらせたよ').then(function(v){if(v){S.xp=null;render(true)}})}
   if(act==='gv'||act==='rv'){
     var gc=act==='gv'?S.chores.find(function(x){return x.id===id}):choreOf(S.reqs.find(function(x){return x.id===id}));if(!gc||!cMax(gc))return;
     var cv=act==='gv'?(S.give?S.give.v:+gc.points):reqPts(S.reqs.find(function(x){return x.id===id}));cv=Math.max(+gc.points||0,Math.min(cMax(gc),cv));
@@ -569,7 +610,7 @@ document.addEventListener('click',function(ev){
     return run(function(){return todo.reduce(function(pr,r){return pr.then(function(){
       return approve(r,amt[r.id]).catch(function(e){if(e&&e.code==='gone'){gone++;return}throw e})})},Promise.resolve())
       .then(function(){toast((todo.length-gone)+'件 OKにしたよ'+(skip?'('+skip+'件は のこしたよ)':''))})})}
-  if(act==='undo'){if(armed('u'+id))return run(function(){return S.db.doc('ledger/'+id).delete()},'けしたよ');return}
+  if(act==='undo'){if(armed('u'+id))return run(function(){return removeLedger(id)},'けしたよ');return}
   if(act==='kcolor'){var kk=kidById(id);if(!kk)return;var i=COLORS.indexOf(kidColor(kk));return run(function(){return S.db.doc('kids/'+id).update({color:COLORS[(i+1)%COLORS.length]})})}
   if(act==='cdel'){if(armed('c'+id))return run(function(){return S.db.doc('chores/'+id).delete()},'さくじょしたよ');return}
   if(act==='cadd'){
@@ -608,12 +649,12 @@ document.addEventListener('focusout',function(){setTimeout(function(){
 function doLogin(){
   var pw=document.getElementById('kagi');
   var v=pw?pw.value:'';
-  if(!v){S.loginErr='パスワードを入れてね';render(true);return}
+  if(!v){S.loginErr='パスワードを いれてね';render(true);return}
   S.loginErr='';
   signInWithEmailAndPassword(auth,S.who==='oya'?PARENT_EMAIL:KID_EMAIL,v).catch(function(e){
     var c=e&&e.code;
     S.loginErr=(c==='auth/invalid-credential'||c==='auth/wrong-password'||c==='auth/user-not-found'||c==='auth/invalid-login-credentials')?'パスワードがちがいます'
-      :c==='auth/too-many-requests'?'しばらく待ってから、もう一度ためしてね'
+      :c==='auth/too-many-requests'?'しばらく まってから、もういちど ためしてね'
       :c==='auth/network-request-failed'?'ネットにつながっていません'
       :'ログインできませんでした';
     render(true)})}
@@ -621,7 +662,7 @@ function doLogin(){
 function byOrder(a,b){return (a.order||0)-(b.order||0)||String(a.title||a.name||'').localeCompare(String(b.title||b.name||''))}
 function list(s){return s.docs.map(function(d){var o=d.data()||{};o.id=d.id;return o})}
 function sub(name,q,fn){
-  return q.onSnapshot(function(s){fn(s);S.got[name]=true;try{rewardCheck()}catch(e){}render()},function(e){
+  return q.onSnapshot(function(s){fn(s);S.got[name]=true;try{rewardCheck()}catch(e){}try{maybeMigrate()}catch(e){}render()},function(e){
     if(!S.user)return;
     S.err=(e&&e.code)||'error';render();
     /* 一時的なエラーなら、少し待って読み込み直す */
@@ -661,14 +702,22 @@ function celebrate(x){
   el.addEventListener('click',function(){el.remove()});
   document.body.appendChild(el);fanfare();
   setTimeout(function(){if(el.parentNode)el.remove()},6000)}
-function stopSubs(){subs.forEach(function(u){try{u()}catch(e){}});subs=[]}
+function stopSubs(){subs.forEach(function(u){try{u()}catch(e){}});subs=[];stopLedger()}
+var LEDGER_N=150,ledUnsub=null;
+function stopLedger(){if(ledUnsub){try{ledUnsub()}catch(e){}ledUnsub=null}}
+/* きろくの読み込み: 合計を移し終えたら最近の150件だけ。まだなら全部(移す計算に使う) */
+function syncLedger(){
+  var m=aggReady()?'recent':'full';if(m===S.ledgerMode&&ledUnsub)return;
+  stopLedger();S.ledgerMode=m;
+  var ref=collection(fs,'ledger'),q=m==='recent'?query(ref,orderBy('ts','desc'),limit(LEDGER_N)):ref;
+  ledUnsub=sub('ledger',{onSnapshot:function(next,err){return onSnapshot(q,function(s){next({docs:s.docs.map(function(d){return{id:d.id,data:function(){return d.data()}}})})},err)}},function(s){S.ledger=list(s)})}
 function startSubs(){
   stopSubs();S.got={};S.err=null;
   var db=S.db;
-  subs.push(sub('kids',db.collection('kids'),function(s){S.kids=list(s).sort(byOrder)}));
+  S.ledgerMode=null;
+  subs.push(sub('kids',db.collection('kids'),function(s){S.kids=list(s).sort(byOrder);syncLedger()}));
   subs.push(sub('chores',db.collection('chores'),function(s){S.chores=list(s).sort(byOrder)}));
   subs.push(sub('reqs',db.collection('requests'),function(s){S.reqs=list(s)}));
-  subs.push(sub('ledger',db.collection('ledger'),function(s){S.ledger=list(s)}));
   subs.push(sub('cfg',db.doc('settings/main'),function(s){S.cfgExists=s.exists;S.cfg=Object.assign({yenPerPoint:1,step:10},s.exists?s.data():{})}))}
 
 onAuthStateChanged(auth,function(u){
