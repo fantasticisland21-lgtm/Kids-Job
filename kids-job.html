@@ -99,6 +99,15 @@ td.up{color:var(--plus)} td.dn{color:var(--minus)}
 .hint{color:var(--muted);text-align:center;padding:24px 8px;margin:0}
 .err{color:var(--minus);font-weight:900;margin:0}
 .panel{background:var(--surface);border-radius:22px;padding:18px}
+.stamp.f{font-size:13px;letter-spacing:-.02em}
+.pick{display:block;background:var(--surface-2);border-radius:18px;padding:12px}
+.pick .stepper output{font-size:40px}
+.pick .stepper button.rd{width:48px;height:48px;font-size:24px}
+.pick .qk{display:flex;gap:8px;margin-top:10px}
+.pick .qk button{flex:1}
+.mini{font-size:12px;color:var(--muted);margin:2px 0 0}
+.srow.cr{flex-wrap:wrap}
+.srow.cr .in:not(.n){flex:1 1 100%}
 .stepper{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .stepper button.rd{flex:none;width:56px;height:56px;border-radius:50%;background:var(--surface-2);font:600 28px var(--display);display:grid;place-items:center}
 .stepper output{display:block;text-align:center;font-family:var(--display);font-weight:700;font-size:56px;line-height:1;font-variant-numeric:tabular-nums}
@@ -115,7 +124,7 @@ td.up{color:var(--plus)} td.dn{color:var(--minus)}
 .srow{display:flex;align-items:center;gap:10px;background:var(--surface);border-radius:16px;padding:8px 10px}
 .sw{flex:none;width:40px;height:40px;border-radius:50%;background:var(--k);border:3px solid var(--surface-2)}
 .in{min-width:0;flex:1;min-height:44px;padding:0 12px;border-radius:12px;border:2px solid var(--line);background:var(--bg);font-size:16px}
-.in.n{flex:none;width:72px;text-align:center;font-variant-numeric:tabular-nums}
+.in.n{flex:none;width:72px;padding:0 6px;text-align:center;font-variant-numeric:tabular-nums}
 .ghost{flex:none;min-height:40px;padding:0 10px;border-radius:12px;color:var(--muted);font-weight:900;font-size:13px}
 .ghost.armed{background:var(--minus);color:var(--bg)}
 .fld{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 10px;font-weight:700}
@@ -174,7 +183,7 @@ var firebaseConfig={
 };
 /* ログインに使う2つのアカウント(メールは本物でなくてOK)。
    Firebaseの「ルール」にも、同じ PARENT_EMAIL を書いてあります。 */
-var APP_VERSION='v10.5';
+var APP_VERSION='v10.6';
 var PARENT_EMAIL='oya@example.com';
 var KID_EMAIL='kodomo@example.com';
 
@@ -213,7 +222,7 @@ function levelUp(){try{
 }catch(e){}}
 function ink(c){var m=/^#(..)(..)(..)$/.exec(c||'');if(!m)return '#fff';var l=(0.299*parseInt(m[1],16)+0.587*parseInt(m[2],16)+0.114*parseInt(m[3],16));return l>165?'#2A2250':'#fff'}
 function kst(x){var c=kidColor(x);return '--k:'+esc(c)+';--ink:'+ink(c)}
-var S={kids:[],chores:[],reqs:[],ledger:[],cfg:{yenPerPoint:1,step:10},got:{},sel:null,tab:'home',parent:false,canEdit:false,db:null,err:null,xp:null,arm:null,busy:false,dirty:false,authReady:false,user:null,who:'oya',loginErr:'',hv:'list',month:null};
+var S={kids:[],chores:[],reqs:[],ledger:[],cfg:{yenPerPoint:1,step:10},got:{},sel:null,tab:'home',parent:false,canEdit:false,db:null,err:null,xp:null,arm:null,busy:false,dirty:false,authReady:false,user:null,who:'oya',loginErr:'',hv:'list',month:null,rp:{},give:null};
 var subs=[];
 var view=document.getElementById('view'),tabsEl=document.getElementById('tabs'),modeEl=document.getElementById('mode'),toastEl=document.getElementById('toast');
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
@@ -295,6 +304,17 @@ function monthBody(k){
     +(m.adj?'<li class="row ent"><span class="rt">ちょうせい</span><span class="delta '+(m.adj>0?'p':'m')+'">'+signed(m.adj)+'</span></li>':'')
     +(m.spent?'<li class="row ent"><span class="rt">お小遣いにこうかん<span class="d">'+m.yen+'円 わたした</span></span><span class="delta m">−'+m.spent+'</span></li>':'');
   return h+'<h2>'+p[0]+'年'+(+p[1])+'月の ないわけ</h2><ul class="list">'+rows+'</ul>'}
+/* ポイントが変わるおてつだい(points=いちばん少ない, max=いちばん多い) */
+function cMax(c){var m=+(c&&c.max)||0,p=+(c&&c.points)||0;return m>p?m:0}
+function cStep(c){var a=+c.points||0,b=cMax(c);return (a%10===0&&b%10===0)?10:(a%5===0&&b%5===0)?5:1}
+function cLabel(c){var m=cMax(c);return m?(+c.points||0)+'〜'+m:String(+c.points||0)}
+function choreOf(r){return r&&r.kind==='chore'?S.chores.find(function(x){return x.id===r.choreId}):null}
+function reqPts(r){var c=choreOf(r);if(c&&cMax(c)){var v=S.rp[r.id];return v!=null?v:(+r.points||0)}return +r.points||0}
+function pickBox(c,v,act,id,kid,okLab){
+  var st=cStep(c),mn=+c.points||0,mx=cMax(c);
+  return '<div class="stepper"><button class="rd" data-act="'+act+'" data-id="'+esc(id)+'"'+(kid?' data-kid="'+esc(kid)+'"':'')+' data-d="-'+st+'" aria-label="へらす"'+(v<=mn?' disabled':'')+'>−</button>'
+   +'<output>'+v+'<small>pt</small></output><button class="rd" data-act="'+act+'" data-id="'+esc(id)+'"'+(kid?' data-kid="'+esc(kid)+'"':'')+' data-d="'+st+'" aria-label="ふやす"'+(v>=mx?' disabled':'')+'>＋</button></div>'
+   +'<p class="mini" style="text-align:center">'+mn+'〜'+mx+'pt の あいだで えらべるよ</p>'}
 function pendingFor(kid,choreId){return S.reqs.some(function(r){return r.kid===kid&&r.kind==='chore'&&r.choreId===choreId})}
 
 function seedView(){
@@ -311,7 +331,12 @@ function homeView(k){
     var btn='<span class="gives">'+S.kids.map(function(x){
       if(!S.parent&&pendingFor(x.id,c.id))return '<button class="btn kb" disabled style="'+kst(x)+'">'+'<span class="nm">'+esc(x.name)+'</span><small>かくにんまち</small></button>';
       return '<button class="btn kb" style="'+kst(x)+'" data-act="chore" data-id="'+esc(c.id)+'" data-kid="'+esc(x.id)+'">'+'<span class="nm">'+esc(x.name)+'</span><small>'+lab+'</small></button>'}).join('')+'</span>';
-    return '<li class="row"><span class="stamp">+'+(+c.points||0)+'<i>pt</i></span><span class="rt">'+esc(c.title)+'</span>'+btn+'</li>'}).join('')+'</ul>';
+    var row='<li class="row"><span class="stamp'+(cMax(c)?' f':'')+'">'+(cMax(c)?'':'+')+cLabel(c)+'<i>pt</i></span><span class="rt">'+esc(c.title)+'</span>'+btn+'</li>';
+    var g=S.give;
+    if(S.parent&&g&&g.cid===c.id&&cMax(c)){var gk=kidById(g.kid);
+      row+='<li class="pick" style="'+kst(gk)+'"><p class="rt" style="margin:0 0 8px;text-align:center">'+esc(gk?gk.name:'')+'に 何ポイント あげる?</p>'+pickBox(c,g.v,'gv',c.id,g.kid)
+       +'<div class="qk"><button class="btn quiet" data-act="gx">やめる</button><button class="btn acc" data-act="gok">'+g.v+'pt あげる</button></div></li>'}
+    return row}).join('')+'</ul>';
   var mine=S.reqs.length;
   if(!S.parent&&mine)h+='<p class="hint">おうちの人のかくにんを待っているよ('+mine+'件)</p>';
   return h+logoutBtn()}
@@ -351,11 +376,12 @@ function okView(){
   var list=S.reqs.slice().sort(function(a,b){return (a.ts||0)-(b.ts||0)});
   var all=list.length>=2?'<button class="btn acc wide'+(S.arm==='all'?' armed':'')+'" data-act="okall" style="margin-top:4px">'+(S.arm==='all'?'もういちど おすと ぜんぶOK':'ぜんぶOK('+list.length+'件)')+'</button>':'';
   return '<h2>かくにん待ち</h2>'+all+'<ul class="list"'+(all?' style="margin-top:12px"':'')+'>'+list.map(function(r){
-    var k=kidById(r.kid),ex=r.kind==='exchange';
+    var k=kidById(r.kid),ex=r.kind==='exchange',cf=choreOf(r);if(cf&&!cMax(cf))cf=null;
     var txt=ex?'お小遣いにこうかん ('+((+r.points||0)*rate())+'円)':r.label;
     return '<li class="row ent" style="--k:'+esc(kidColor(k))+'"><span class="rt"><span class="k"></span>'+esc(k?k.name:'?')+'<small>'+esc(txt)+' ・ '+fmt(r.ts||0)+'</small></span>'
-     +'<span class="delta '+(ex?'m':'p')+'">'+(ex?'−':'+')+(+r.points||0)+'</span>'
-     +'<span class="actions"><button class="btn" data-act="ok" data-id="'+esc(r.id)+'" aria-label="OK">OK</button><button class="ghost" data-act="ng" data-id="'+esc(r.id)+'">ちがう</button></span></li>'}).join('')+'</ul>'}
+     +'<span class="delta '+(ex?'m':'p')+'">'+(ex?'−':'+')+reqPts(r)+'</span>'
+     +'<span class="actions"><button class="btn" data-act="ok" data-id="'+esc(r.id)+'" aria-label="OK">OK</button><button class="ghost" data-act="ng" data-id="'+esc(r.id)+'">ちがう</button></span></li>'
+     +(cf&&!ex?'<li class="pick">'+pickBox(cf,reqPts(r),'rv',r.id)+'</li>':'')}).join('')+'</ul>'}
 
 function setView(){
   var h='<h2>子どもの名前</h2><ul class="list">'+S.kids.map(function(k){
@@ -363,10 +389,12 @@ function setView(){
      +'<input class="in" id="kn-'+esc(k.id)+'" data-f="kname" data-id="'+esc(k.id)+'" value="'+esc(k.name)+'" maxlength="12" aria-label="なまえ"></li>'}).join('')+'</ul>';
   h+='<h2>おてつだいリスト</h2><ul class="list">'+S.chores.map(function(c){
     var a=S.arm==='c'+c.id;
-    return '<li class="srow"><input class="in" id="ct-'+esc(c.id)+'" data-f="ctitle" data-id="'+esc(c.id)+'" value="'+esc(c.title)+'" maxlength="30" aria-label="おてつだい名">'
-     +'<input class="in n" id="cp-'+esc(c.id)+'" data-f="cpts" data-id="'+esc(c.id)+'" type="number" inputmode="numeric" min="1" value="'+(+c.points||0)+'" aria-label="ポイント"><span>pt</span>'
+    return '<li class="srow cr"><input class="in" id="ct-'+esc(c.id)+'" data-f="ctitle" data-id="'+esc(c.id)+'" value="'+esc(c.title)+'" maxlength="30" aria-label="おてつだい名">'
+     +'<input class="in n" id="cp-'+esc(c.id)+'" data-f="cpts" data-id="'+esc(c.id)+'" type="number" inputmode="numeric" min="1" value="'+(+c.points||0)+'" aria-label="ポイント(いちばん少ない)"><span>〜</span>'
+     +'<input class="in n" id="cm-'+esc(c.id)+'" data-f="cmax" data-id="'+esc(c.id)+'" type="number" inputmode="numeric" min="1" value="'+(cMax(c)||'')+'" placeholder="なし" aria-label="いちばん多いポイント(空なら決まったポイント)"><span>pt</span>'
      +'<button class="ghost'+(a?' armed':'')+'" data-act="cdel" data-id="'+esc(c.id)+'">'+(a?'ほんとう?':'さくじょ')+'</button></li>'}).join('')+'</ul>';
-  h+='<div class="srow" style="margin-top:10px"><input class="in" id="nc-t" placeholder="新しいおてつだい" maxlength="30" aria-label="新しいおてつだい"><input class="in n" id="nc-p" type="number" inputmode="numeric" min="1" value="10" aria-label="ポイント"><button class="btn acc" data-act="cadd">追加</button></div>';
+  h+='<div class="srow cr" style="margin-top:10px"><input class="in" id="nc-t" placeholder="新しいおてつだい" maxlength="30" aria-label="新しいおてつだい"><input class="in n" id="nc-p" type="number" inputmode="numeric" min="1" value="10" aria-label="ポイント"><span>〜</span><input class="in n" id="nc-m" type="number" inputmode="numeric" min="1" placeholder="なし" aria-label="いちばん多いポイント"><span>pt</span><button class="btn acc" data-act="cadd">追加</button></div>'
+   +'<p class="hint">右のポイントを入れると、その間でポイントを えらべる おてつだいになります(例: ゆきかき 10〜100pt)。空なら いつも同じポイントです。</p>';
   h+='<h2>こうかんのルール</h2><div class="panel"><div class="fld"><span>1ポイント =</span><input class="in n" id="rate" data-f="rate" type="number" inputmode="numeric" min="1" value="'+rate()+'" aria-label="1ポイントの円"><span>円</span></div>'
    +'<div class="fld"><span>こうかんの単位</span><input class="in n" id="step" data-f="step" type="number" inputmode="numeric" min="1" value="'+step()+'" aria-label="単位ポイント"><span>ポイントずつ</span></div></div>';
   h+='<h2>ポイントをちょうせい</h2><div class="panel stack"><div class="fld"><label class="l" for="adj-k">だれの</label><select class="in" id="adj-k">'+S.kids.map(function(k){return '<option value="'+esc(k.id)+'">'+esc(k.name)+'</option>'}).join('')+'</select></div>'
@@ -429,6 +457,7 @@ document.addEventListener('click',function(ev){
   if(act==='chore'){
     c=S.chores.find(function(x){return x.id===id});if(!c)return;
     var gk=kidById(t.dataset.kid)||k;
+    if(S.parent&&cMax(c)){S.give=(S.give&&S.give.cid===c.id&&S.give.kid===gk.id)?null:{cid:c.id,kid:gk.id,v:+c.points||0};render(true);return}
     if(S.parent)return run(function(){return addLedger(null,gk.id,+c.points,'earn',c.title)},gk.name+'に '+c.points+'pt あげたよ');
     return run(function(){return S.db.collection('requests').add({kid:gk.id,kind:'chore',choreId:c.id,label:c.title,points:+c.points,ts:Date.now()})},'おうちの人に知らせたよ')}
   if(act==='xp'){var av=Math.max(0,bal(k.id)-pendX(k.id)),stp=step(),mx=Math.floor(av/stp)*stp;S.xp=Math.max(0,Math.min(mx,(S.xp||0)+int(t.dataset.d,0)));render(true);return}
@@ -438,6 +467,16 @@ document.addEventListener('click',function(ev){
     if(pts<=0||pts>av3||pts%step()!==0){toast(step()+'ptずつ こうかんできるよ');return}
     if(S.parent)return run(function(){return addLedger(null,k.id,-pts,'exchange','お小遣いにこうかん',{yen:pts*rate()})},pts*rate()+'円 わたしたよ').then(function(){S.xp=null;render(true)});
     return run(function(){return S.db.collection('requests').add({kid:k.id,kind:'exchange',points:pts,yen:pts*rate(),label:'お小遣いにこうかん',ts:Date.now()})},'おうちの人に知らせたよ').then(function(){S.xp=null;render(true)})}
+  if(act==='gv'||act==='rv'){
+    var gc=act==='gv'?S.chores.find(function(x){return x.id===id}):choreOf(S.reqs.find(function(x){return x.id===id}));if(!gc||!cMax(gc))return;
+    var cv=act==='gv'?(S.give?S.give.v:+gc.points):reqPts(S.reqs.find(function(x){return x.id===id}));
+    var nv=Math.max(+gc.points||0,Math.min(cMax(gc),cv+int(t.dataset.d,0)));
+    if(act==='gv'){if(S.give)S.give.v=nv}else S.rp[id]=nv;render(true);return}
+  if(act==='gx'){S.give=null;render(true);return}
+  if(act==='gok'){
+    var g=S.give;if(!g)return;var gc2=S.chores.find(function(x){return x.id===g.cid}),gk2=kidById(g.kid);if(!gc2||!gk2){S.give=null;render(true);return}
+    var gv=g.v;S.give=null;
+    return run(function(){return addLedger(null,gk2.id,gv,'earn',gc2.title)},gk2.name+'に '+gv+'pt あげたよ')}
   if(act==='cancel')return run(function(){return S.db.doc('requests/'+id).delete()},'とりけしたよ');
   if(act==='ng')return run(function(){return S.db.doc('requests/'+id).delete()},'もどしたよ');
   if(act==='ok'){
@@ -445,32 +484,32 @@ document.addEventListener('click',function(ev){
     var rk=kidById(r.kid);if(!rk)return;
     if(r.kind==='exchange'&&bal(r.kid)<(+r.points||0)){toast('ポイントがたりません');return}
     return run(function(){
-      var p=+r.points||0;
+      var p=reqPts(r);
       var w=r.kind==='exchange'?addLedger(r.id,r.kid,-p,'exchange','お小遣いにこうかん',{yen:p*rate()}):addLedger(r.id,r.kid,p,'earn',r.label);
-      return w.then(function(){return S.db.doc('requests/'+id).delete()})},'OKにしたよ')}
+      return w.then(function(){delete S.rp[id];return S.db.doc('requests/'+id).delete()})},'OKにしたよ')}
   if(act==='okall'){
     if(!armed('all'))return;
     var bl={},todo=[],skip=0;
     S.reqs.slice().sort(function(a,b){return (a.ts||0)-(b.ts||0)}).forEach(function(r){
       if(!kidById(r.kid))return;
-      var p=+r.points||0;if(bl[r.kid]==null)bl[r.kid]=bal(r.kid);
+      var p=reqPts(r);if(bl[r.kid]==null)bl[r.kid]=bal(r.kid);
       if(r.kind==='exchange'){if(bl[r.kid]<p){skip++;return}bl[r.kid]-=p}else bl[r.kid]+=p;
       todo.push(r)});
     if(!todo.length){toast('ポイントがたりません');return}
     return run(function(){return todo.reduce(function(pr,r){return pr.then(function(){
-      var p=+r.points||0;
+      var p=reqPts(r);
       var w=r.kind==='exchange'?addLedger(r.id,r.kid,-p,'exchange','お小遣いにこうかん',{yen:p*rate()}):addLedger(r.id,r.kid,p,'earn',r.label);
-      return w.then(function(){return S.db.doc('requests/'+r.id).delete()})})},Promise.resolve())},
+      return w.then(function(){delete S.rp[r.id];return S.db.doc('requests/'+r.id).delete()})})},Promise.resolve())},
       todo.length+'件 OKにしたよ'+(skip?'('+skip+'件はポイントがたりないので のこしたよ)':''))}
   if(act==='undo'){if(armed('u'+id))return run(function(){return S.db.doc('ledger/'+id).delete()},'けしたよ');return}
   if(act==='kcolor'){var kk=kidById(id);if(!kk)return;var i=COLORS.indexOf(kidColor(kk));return run(function(){return S.db.doc('kids/'+id).update({color:COLORS[(i+1)%COLORS.length]})})}
   if(act==='cdel'){if(armed('c'+id))return run(function(){return S.db.doc('chores/'+id).delete()},'さくじょしたよ');return}
   if(act==='cadd'){
-    var title=document.getElementById('nc-t').value.trim(),pp=int(document.getElementById('nc-p').value,0);
+    var title=document.getElementById('nc-t').value.trim(),pp=int(document.getElementById('nc-p').value,0),pm=int(document.getElementById('nc-m').value,0);
     if(!title||pp<1){toast('名前とポイントを入れてね');return}
     var ord=S.chores.reduce(function(m,x){return Math.max(m,+x.order||0)},0)+1;
     if(document.activeElement)document.activeElement.blur();
-    return run(function(){return S.db.collection('chores').add({title:title,points:pp,order:ord})},'追加したよ')}
+    return run(function(){return S.db.collection('chores').add({title:title,points:pp,max:pm>pp?pm:0,order:ord})},'追加したよ')}
   if(act==='adj'){
     var kid=document.getElementById('adj-k').value,sg=int(document.getElementById('adj-s').value,1),ap=int(document.getElementById('adj-p').value,0),memo=document.getElementById('adj-m').value.trim();
     if(ap<1){toast('ポイントを入れてね');return}
@@ -483,6 +522,7 @@ document.addEventListener('change',function(ev){
   var f=t.dataset.f,id=t.dataset.id;
   if(f==='kname'){var nm=t.value.trim();if(!nm){render(true);return}return run(function(){return S.db.doc('kids/'+id).update({name:nm})})}
   if(f==='ctitle'){var ti=t.value.trim();if(!ti){render(true);return}return run(function(){return S.db.doc('chores/'+id).update({title:ti})})}
+  if(f==='cmax'){var mv=int(t.value,0);return run(function(){return S.db.doc('chores/'+id).update({max:mv>0?mv:0})})}
   if(f==='cpts'){var pv=int(t.value,0);if(pv<1){render(true);return}return run(function(){return S.db.doc('chores/'+id).update({points:pv})})}
   if(f==='rate'){var rv=int(t.value,0);if(rv<1){render(true);return}return run(function(){return saveCfg({yenPerPoint:rv})})}
   if(f==='step'){var sv=int(t.value,0);if(sv<1){render(true);return}return run(function(){return saveCfg({step:sv})})}
