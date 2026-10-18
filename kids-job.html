@@ -213,7 +213,7 @@ var firebaseConfig={
 };
 /* ログインに使う2つのアカウント(メールは本物でなくてOK)。
    Firebaseの「ルール」にも、同じ PARENT_EMAIL を書いてあります。 */
-var APP_VERSION='v10.8';
+var APP_VERSION='v10.9';
 var PARENT_EMAIL='oya@example.com';
 var KID_EMAIL='kodomo@example.com';
 
@@ -240,8 +240,6 @@ var adapter={
 var COLORS=['#E5483D','#0E8C88','#6B3FE0','#D9650F','#D6337F','#2E8B3E','#C4A8F5','#F7B0CF','#9ED6F2'];
 var AC=null;
 function levelUp(){try{
-  /* iPhoneのマナーモード(消音スイッチ)でも鳴るようにする(対応しているSafariだけ) */
-  try{if(navigator.audioSession)navigator.audioSession.type='playback'}catch(e){}
   var A=window.AudioContext||window.webkitAudioContext;if(!A)return;
   if(!AC)AC=new A();if(AC.state==='suspended')AC.resume();
   var t0=AC.currentTime+0.02,notes=[523.25,659.25,783.99,1046.5,1318.5];
