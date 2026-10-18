@@ -6,29 +6,26 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="おてつだい">
-<meta name="theme-color" content="#2B54F0">
+<meta name="theme-color" content="#FFFFFF">
 <meta name="color-scheme" content="light dark">
 <title>おてつだいポイント</title>
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=13">
 <link rel="icon" type="image/svg+xml" href="icon.svg?v=13">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
 <style>
 /* Layout: one phone-width column. A saturated balance card on top (dotted like a stamp card), chore rows below, fixed bottom tab bar. */
 :root{
   color-scheme:light;
-  --bg:#EEF2FA; --surface:#FFFFFF; --surface-2:#E3E9F5; --fg:#141C33; --muted:#566280; --line:#D2DAEC;
+  --bg:#FFFFFF; --surface:#FFFFFF; --surface-2:#F1F1EF; --soft:#F7F7F5; --fg:#37352F; --muted:#787774; --line:#E9E9E7;
   --accent:#2B54F0; --accent-fg:#FFFFFF;
   --coin:#FFC83D; --coin-fg:#3A2A00;
   --go:#0F7F5B; --go-fg:#FFFFFF;
   --plus:#0F7F5B; --minus:#C2303F;
-  --display:'Fredoka','Zen Maru Gothic','Hiragino Maru Gothic ProN','Hiragino Sans',system-ui,sans-serif;
-  --body:'Zen Maru Gothic','Hiragino Maru Gothic ProN','Hiragino Sans',system-ui,sans-serif;
+  --display:-apple-system,BlinkMacSystemFont,'Segoe UI','Hiragino Sans',system-ui,sans-serif;
+  --body:-apple-system,BlinkMacSystemFont,'Segoe UI','Hiragino Sans',system-ui,sans-serif;
 }
 @media (prefers-color-scheme: dark){
   :root{
-    --bg:#0C1224; --surface:#161E38; --surface-2:#212B4D; --fg:#EAF0FF; --muted:#9AA6C8; --line:#2A3558;
+    --bg:#191919; --surface:#191919; --surface-2:#2C2C2C; --soft:#202020; --fg:#D4D4D4; --muted:#9B9B9B; --line:#2F2F2F;
     --accent:#86A0FF; --accent-fg:#0A1233; --go:#34C793; --go-fg:#04241A; --plus:#4ADBA6; --minus:#FF8791;
     color-scheme:dark;
   }
@@ -154,6 +151,39 @@ label.l{font-size:12px;font-weight:900;color:var(--muted)}
 @keyframes fxin{from{opacity:0}to{opacity:1}}
 @keyframes fxpop{from{transform:scale(.4);opacity:0}to{transform:scale(1);opacity:1}}
 @media (prefers-reduced-motion:reduce){.cf{display:none}.fxcard{animation:none}}
+
+/* ---- Notion風(v10.7): 白とグレーの土台。子どもの色・ボタンの色・黄色のラベルはそのまま ---- */
+body{font-weight:400;font-size:15px}
+h1{font-weight:700;font-size:18px;letter-spacing:0}
+h2{margin:24px 0 8px;font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--muted)}
+.row,.srow,.panel,.tbl{background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:none}
+.list{gap:8px}
+.panel{padding:16px}
+.balance{border-radius:12px}
+.balance.sel{box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--k)}
+.bl,.yen{font-weight:700}
+.stamp{width:52px;height:52px;border:0;border-radius:8px;background:var(--surface-2);color:var(--fg);font-weight:700}
+.rt{font-weight:500}
+.btn{border-radius:8px;font-weight:700}
+.btn.kb{border-radius:8px}
+.btn.kb small{font-weight:700}
+.seg{border-radius:8px;padding:2px}
+.seg button{border-radius:6px;font-weight:600}
+.seg button.on{box-shadow:0 1px 2px rgba(15,15,15,.12)}
+.chip{border:1px solid var(--line);border-radius:8px;font-weight:600}
+.chip.on{border-color:var(--k);box-shadow:inset 0 0 0 1px var(--k)}
+.in{border:1px solid var(--line);border-radius:6px;background:var(--surface)}
+.in:focus{outline:none;border-color:#2383E2;box-shadow:0 0 0 2px rgba(35,131,226,.2)}
+.pick{background:var(--soft);border:1px solid var(--line);border-radius:10px}
+.stepper button.rd{border-radius:8px;background:var(--surface-2);font-weight:500}
+.stepper output,.num,.delta,.conv b{font-weight:700}
+.tag{border-radius:4px;font-weight:600}
+.ghost{border-radius:6px;font-weight:600}
+.err,.conv,.sub,label.l,.fld{font-weight:600}
+th,th:first-child,td:first-child{font-weight:600}
+.tab{font-weight:600}
+.sw{border:2px solid var(--line)}
+#toast{border-radius:8px;font-weight:600;box-shadow:0 4px 16px rgba(15,15,15,.2)}
 </style>
 </head>
 <body>
@@ -183,7 +213,7 @@ var firebaseConfig={
 };
 /* ログインに使う2つのアカウント(メールは本物でなくてOK)。
    Firebaseの「ルール」にも、同じ PARENT_EMAIL を書いてあります。 */
-var APP_VERSION='v10.6';
+var APP_VERSION='v10.7';
 var PARENT_EMAIL='oya@example.com';
 var KID_EMAIL='kodomo@example.com';
 
