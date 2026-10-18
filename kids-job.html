@@ -121,6 +121,7 @@ td.up{color:var(--plus)} td.dn{color:var(--minus)}
 .fld{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 10px;font-weight:700}
 .stack{display:flex;flex-direction:column;gap:12px}
 label.l{font-size:12px;font-weight:900;color:var(--muted)}
+.kagi{-webkit-text-security:disc}
 .vh{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
 .tabs{position:fixed;left:0;right:0;bottom:0;z-index:5;background:var(--surface);border-top:1px solid var(--line);padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px))}
 .tabs nav{max-width:520px;margin:0 auto;display:flex}
@@ -173,7 +174,7 @@ var firebaseConfig={
 };
 /* ログインに使う2つのアカウント(メールは本物でなくてOK)。
    Firebaseの「ルール」にも、同じ PARENT_EMAIL を書いてあります。 */
-var APP_VERSION='v10.4';
+var APP_VERSION='v10.5';
 var PARENT_EMAIL='oya@example.com';
 var KID_EMAIL='kodomo@example.com';
 
@@ -250,11 +251,9 @@ function armed(key){
 
 /* ---------- views ---------- */
 function loginView(){
-  var email=S.who==='oya'?PARENT_EMAIL:KID_EMAIL;
   return '<div class="panel stack"><p class="rt">だれでログインする?</p>'
    +'<div class="seg" role="group" aria-label="ログインする人"><button data-act="who" data-v="oya" class="'+(S.who==='oya'?'on':'')+'">おとな</button><button data-act="who" data-v="kodomo" class="'+(S.who==='kodomo'?'on':'')+'">こども</button></div>'
-   +'<input class="vh" type="email" id="un" autocomplete="username" value="'+esc(email)+'" readonly tabindex="-1" aria-hidden="true">'
-   +'<div class="stack"><label class="l" for="pw">パスワード</label><input class="in" id="pw" type="password" autocomplete="current-password" autocapitalize="off" autocorrect="off" enterkeyhint="go"></div>'
+   +'<div class="stack"><label class="l" for="kagi">パスワード</label><input class="in kagi" id="kagi" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" data-1p-ignore data-lpignore="true" data-form-type="other"></div>'
    +(S.loginErr?'<p class="err" role="alert">'+esc(S.loginErr)+'</p>':'')
    +'<button class="btn acc wide" data-act="login">ログイン</button></div>'
    +'<p class="hint">いちど ログインすると、このiPhoneでは そのまま使えます。</p>'}
@@ -489,7 +488,7 @@ document.addEventListener('change',function(ev){
   if(f==='step'){var sv=int(t.value,0);if(sv<1){render(true);return}return run(function(){return saveCfg({step:sv})})}
 });
 document.addEventListener('keydown',function(ev){
-  if(ev.key==='Enter'&&ev.target&&ev.target.id==='pw'){ev.preventDefault();doLogin();return}
+  if(ev.key==='Enter'&&ev.target&&ev.target.id==='kagi'){ev.preventDefault();doLogin();return}
   if((ev.key==='Enter'||ev.key===' ')&&ev.target&&ev.target.getAttribute&&ev.target.getAttribute('role')==='button'){ev.preventDefault();ev.target.click()}});
 document.addEventListener('focusout',function(){setTimeout(function(){
   var a=document.activeElement;
@@ -497,7 +496,7 @@ document.addEventListener('focusout',function(){setTimeout(function(){
 
 /* ---------- ログインとデータ読み込み ---------- */
 function doLogin(){
-  var pw=document.getElementById('pw');
+  var pw=document.getElementById('kagi');
   var v=pw?pw.value:'';
   if(!v){S.loginErr='パスワードを入れてね';render(true);return}
   S.loginErr='';
