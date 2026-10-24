@@ -12,6 +12,7 @@
 <title>おてつだいポイント</title>
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=13">
 <link rel="icon" type="image/svg+xml" href="icon.svg?v=13">
+<link rel="manifest" href="manifest.json?v=1">
 <style>
 /* 1列の画面。上に子どもごとの残高カード、下におてつだいの行、いちばん下にタブ。土台はNotion風(v10.7) */
 :root{
@@ -219,7 +220,8 @@ th,th:first-child,td:first-child{font-weight:600}
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/13.0.0/firebase-app.js";
 import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut} from "https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js";
-import {getFirestore,collection,doc,onSnapshot,addDoc,setDoc,updateDoc,deleteDoc,runTransaction,query,orderBy,limit,writeBatch,increment,FieldPath} from "https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js";
+import {getFirestore,collection,doc,onSnapshot,addDoc,setDoc,updateDoc,deleteDoc,runTransaction,query,orderBy,limit,writeBatch,increment,FieldPath,deleteField} from "https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js";
+import {getMessaging,getToken,isSupported} from "https://www.gstatic.com/firebasejs/13.0.0/firebase-messaging.js";
 
 /* ---------- Firebase 設定 ---------- */
 var firebaseConfig={
@@ -232,13 +234,66 @@ var firebaseConfig={
 };
 /* ログインに使う2つのアカウント(メールは本物でなくてOK)。
    Firebaseの「ルール」にも、同じ PARENT_EMAIL を書いてあります。 */
-var APP_VERSION='v10.11';
+var APP_VERSION='v11';
 var PARENT_EMAIL='oya@example.com';
 var KID_EMAIL='kodomo@example.com';
 
 var fbApp=initializeApp(firebaseConfig);
 var auth=getAuth(fbApp);
 var fs=getFirestore(fbApp);
+
+/* ---------- 通知とバッジ(v11) ----------
+   おとなの端末を settings/push の devices に登録しておくと、GitHub Actions(notify.js)が
+   5分ごとに新しいお願いを調べて通知する。ホーム画面のアイコンには、かくにん待ちの件数を出す。
+   VAPID_KEY は Firebase の「プロジェクトの設定 → Cloud Messaging → ウェブプッシュ証明書」の鍵 */
+var VAPID_KEY='';
+var PUSH_DOC=doc(fs,'settings','push');
+function today(){var d=new Date();return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate()}
+function tokKey(t){var h=0;for(var i=0;i<t.length;i++)h=(h*31+t.charCodeAt(i))|0;return 'd'+(h>>>0).toString(36)+t.length}
+function standalone(){return window.navigator.standalone===true||(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)}
+function pushOn(){return 'Notification' in window&&Notification.permission==='granted'&&!!store('otm.pushKey')}
+function withTimeout(p,ms){return Promise.race([p,new Promise(function(_,ng){setTimeout(function(){ng(new Error('timeout'))},ms)})])}
+/* この端末の通知の登録(トークン)を取り、settings/push に保存する */
+function pushSave(){
+  return isSupported().then(function(ok){
+    if(!ok||!('serviceWorker' in navigator))throw new Error('unsupported');
+    return navigator.serviceWorker.register('firebase-messaging-sw.js')})
+  .then(function(reg){return getToken(getMessaging(fbApp),{vapidKey:VAPID_KEY,serviceWorkerRegistration:reg})})
+  .then(function(t){
+    if(!t)throw new Error('notoken');
+    var key=tokKey(t),old=store('otm.pushKey'),data={devices:{}};
+    data.devices[key]={token:t,ts:Date.now()};
+    return setDoc(PUSH_DOC,data,{merge:true}).then(function(){
+      store('otm.pushKey',key);store('otm.pushDay',today());
+      if(old&&old!==key)return updateDoc(PUSH_DOC,new FieldPath('devices',old),deleteField()).catch(function(){})})})}
+/* 「通知を登録」ボタン。iPhoneは押した直後に許可を聞かないと出ないので、最初に聞く */
+function pushRegister(){
+  if(!('Notification' in window)||!standalone()){toast('ホーム画面の「おてつだい」から開いて、もういちど押してね');return}
+  if(!VAPID_KEY){toast('通知の鍵がまだ入っていません');return}
+  Notification.requestPermission().then(function(p){
+    if(p!=='granted'){toast('通知が許可されませんでした。iPhoneの設定アプリの「通知」から許可してね');render(true);return}
+    S.pushBusy=true;render(true);
+    return pushSave().then(function(){toast('この端末に通知がとどくようにしたよ')}).catch(function(e){
+      toast(e&&e.code==='permission-denied'?'保存できませんでした(Firebaseのルール)':'通知を登録できませんでした')})
+    .then(function(){S.pushBusy=false;render(true)})})}
+/* ひらいたときに1日1回、登録を新しくする(トークンが変わっても通知が止まらないように) */
+function pushRefresh(){
+  if(!S.canEdit||!VAPID_KEY||!pushOn()||store('otm.pushDay')===today())return;
+  pushSave().catch(function(){})}
+/* ログアウトの前に、この端末への通知を止める(電波がなくても3秒でログアウトに進む) */
+function pushRemove(){
+  var key=store('otm.pushKey');if(!key||!S.canEdit)return Promise.resolve();
+  store('otm.pushKey','');
+  return withTimeout(updateDoc(PUSH_DOC,new FieldPath('devices',key),deleteField()),3000).catch(function(){})}
+/* ホーム画面のアイコンの数字。おとなのアカウントだけ、かくにん待ちの件数を出す */
+var lastBadge=null;
+function badge(n){try{
+  if(!('setAppBadge' in navigator)||n===lastBadge)return;lastBadge=n;
+  (n>0?navigator.setAppBadge(n):navigator.clearAppBadge()).catch(function(){})}catch(e){}}
+function badgeSync(){
+  if(S.user&&S.canEdit){if(S.got&&S.got.reqs)badge(S.reqs.length)}
+  else badge(0)}
+document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible'){lastBadge=null;badgeSync()}});
 
 /* Firestore を、ページの中で使いやすい形にまとめる */
 function docApi(ref){return{
@@ -472,6 +527,10 @@ function setView(){
    +'<div class="fld"><select class="in" id="adj-s" aria-label="たす・ひく"><option value="1">＋ たす</option><option value="-1">− ひく</option></select><input class="in n" id="adj-p" type="number" inputmode="numeric" min="1" placeholder="10" aria-label="ポイント"><span>pt</span></div>'
    +'<div class="fld"><input class="in" id="adj-m" placeholder="メモ(例: テストがんばった)" maxlength="30" aria-label="メモ"></div>'
    +'<button class="btn acc wide" data-act="adj">ちょうせいする</button></div>';
+  var on=pushOn();
+  h+='<h2>通知(この端末)</h2><div class="panel stack"><p class="hint" style="margin:0">'
+   +(on?'この端末に通知がとどきます。子どもが「やった!」「こうかん」を押すと、5〜15分ほどで知らせます。':'子どもが「やった!」「こうかん」を押したときに、この端末に知らせます。ホーム画面の「おてつだい」から開いて押してね。')
+   +'</p><button class="btn acc wide" data-act="push"'+(S.pushBusy?' disabled':'')+'>'+(S.pushBusy?'登録中…':on?'通知を登録しなおす':'通知を登録する')+'</button></div>';
   return h+logoutBtn()}
 
 function render(force){
@@ -479,7 +538,7 @@ function render(force){
   if(!force&&a&&view.contains(a)&&/^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName)){S.dirty=true;return}
   S.dirty=false;
   if(!S.authReady){view.innerHTML='<p class="hint">よみこみ中…</p>';tabsEl.innerHTML='';modeEl.innerHTML='';return}
-  if(!S.user){view.innerHTML=loginView();tabsEl.innerHTML='';modeEl.innerHTML='';return}
+  if(!S.user){view.innerHTML=loginView();tabsEl.innerHTML='';modeEl.innerHTML='';badge(0);return}
   var need=['kids','chores','reqs','ledger','cfg'],ready=need.every(function(n){return S.got[n]});
   var k=cur();
   modeEl.innerHTML=S.canEdit?'<div class="seg" role="group" aria-label="モード"><button data-act="mode" data-v="kid" class="'+(S.parent?'':'on')+'">こども</button><button data-act="mode" data-v="parent" class="'+(S.parent?'on':'')+'">おとな</button></div>':'';
@@ -496,6 +555,7 @@ function render(force){
   else h=S.tab==='home'?homeView(k):S.tab==='ex'?exView(k):S.tab==='hist'?histView(k):S.tab==='ok'?okView():setView();
   if(S.shown==='set'&&S.tab==='set')keepGet();else if(S.tab!=='set')S.keep={};
   view.innerHTML=h;S.shown=(ready&&k&&!S.err)?S.tab:null;
+  badgeSync();
   if(S.shown==='set')keepPut()}
 /* せっていの「新しいおてつだい」「ちょうせい」の入力が、画面の描き直しで消えないようにする */
 var KEEP=['nc-t','nc-p','nc-m','adj-k','adj-s','adj-p','adj-m'];
@@ -555,7 +615,8 @@ document.addEventListener('click',function(ev){
   var act=t.dataset.act,id=t.dataset.id,k=cur(),c;
   if(act==='who'){S.who=t.dataset.v;S.loginErr='';store('otm.who',S.who);render(true);return}
   if(act==='login'){doLogin();return}
-  if(act==='logout'){stopSubs();signOut(auth).catch(function(){});return}
+  if(act==='logout'){pushRemove().then(function(){stopSubs();badge(0);return signOut(auth)}).catch(function(){});return}
+  if(act==='push'){if(!S.pushBusy)pushRegister();return}
   if(act==='tab'){S.tab=t.dataset.v;S.arm=null;render(true);window.scrollTo(0,0);return}
   if(act==='kid'){S.sel=id;store('otm.kid',id);S.xp=null;render(true);return}
   if(act==='hv'){S.hv=t.dataset.v==='month'?'month':'list';render(true);return}
@@ -727,7 +788,7 @@ onAuthStateChanged(auth,function(u){
   S.canEdit=(u.email||'').toLowerCase()===PARENT_EMAIL;
   S.parent=S.canEdit&&store('otm.mode')!=='kid';
   S.db=adapter;
-  startSubs();render(true)});
+  startSubs();render(true);pushRefresh()});
 
 document.getElementById('ver').textContent=APP_VERSION;
 S.sel=store('otm.kid');S.who=store('otm.who')==='kodomo'?'kodomo':'oya';

@@ -1,0 +1,12 @@
+{
+  "name": "おてつだい",
+  "short_name": "おてつだい",
+  "start_url": "kids-job.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#FFFFFF",
+  "icons": [
+    { "src": "apple-touch-icon.png?v=13", "sizes": "180x180", "type": "image/png" }
+  ]
+}
