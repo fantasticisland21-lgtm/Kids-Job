@@ -258,7 +258,7 @@ var firebaseConfig={
 };
 /* ログインに使う2つのアカウント(メールは本物でなくてOK)。
    Firebaseの「ルール」にも、同じ PARENT_EMAIL を書いてあります。 */
-var APP_VERSION='v11.2';
+var APP_VERSION='v11.3';
 var PARENT_EMAIL='oya@example.com';
 var KID_EMAIL='kodomo@example.com';
 
@@ -768,7 +768,8 @@ function rewardCheck(){
   var hit=null;
   S.kids.forEach(function(x){var p=S.rw.u[x.id];if(p!=null&&cur2[x.id]>p)hit=x});
   S.rw.u=cur2;
-  if(hit)celebrate(hit)}
+  /* v11.3: おとなのアカウントでは演出を出さない(こどものアカウントだけ) */
+  if(hit&&!S.canEdit)celebrate(hit)}
 function fanfare(){try{
   var A=window.AudioContext||window.webkitAudioContext;if(!A)return;
   if(!AC)AC=new A();if(AC.state==='suspended')AC.resume();
