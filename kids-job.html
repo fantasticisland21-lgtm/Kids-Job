@@ -258,7 +258,7 @@ var firebaseConfig={
 };
 /* ログインに使う2つのアカウント(メールは本物でなくてOK)。
    Firebaseの「ルール」にも、同じ PARENT_EMAIL を書いてあります。 */
-var APP_VERSION='v11.1';
+var APP_VERSION='v11.2';
 var PARENT_EMAIL='oya@example.com';
 var KID_EMAIL='kodomo@example.com';
 
@@ -293,9 +293,11 @@ function pushSave(){
 /* 「通知を登録」ボタン。iPhoneは押した直後に許可を聞かないと出ないので、最初に聞く */
 function pushRegister(){
   if(!('Notification' in window)||!standalone()){toast('ホーム画面の「おてつだい」から開いて、もういちど押してね');return}
-  if(!VAPID_KEY){toast('通知の鍵がまだ入っていません');return}
   Notification.requestPermission().then(function(p){
     if(p!=='granted'){toast('通知が許可されませんでした。iPhoneの設定アプリの「通知」から許可してね');render(true);return}
+    /* v11.2: iPhoneはアイコンの数字にも通知の許可が要る。鍵がまだなくても、許可だけで数字は出せる */
+    lastBadge=null;badgeSync();
+    if(!VAPID_KEY){toast('アイコンに かくにん待ちの数が出るようにしたよ');render(true);return}
     S.pushBusy=true;render(true);
     return pushSave().then(function(){toast('この端末に通知がとどくようにしたよ')}).catch(function(e){
       toast(e&&e.code==='permission-denied'?'保存できませんでした(Firebaseのルール)':'通知を登録できませんでした')})
@@ -551,7 +553,12 @@ function setView(){
    +'<div class="fld"><select class="in" id="adj-s" aria-label="たす・ひく"><option value="1">＋ たす</option><option value="-1">− ひく</option></select><input class="in n" id="adj-p" type="number" inputmode="numeric" min="1" placeholder="10" aria-label="ポイント"><span>pt</span></div>'
    +'<div class="fld"><input class="in" id="adj-m" placeholder="メモ(例: テストがんばった)" maxlength="30" aria-label="メモ"></div>'
    +'<button class="btn acc wide" data-act="adj">ちょうせいする</button></div>';
-  var on=pushOn();
+  var on=pushOn(),perm=('Notification' in window)&&Notification.permission==='granted';
+  if(!VAPID_KEY){
+    h+='<h2>アイコンの数字(この端末)</h2><div class="panel stack"><p class="hint" style="margin:0">'
+     +(perm?'ホーム画面のアイコンに、かくにん待ちの数が出ます(アプリを開いたとき・もどったときに数えなおします)。':'ホーム画面のアイコンに、かくにん待ちの数を出します。ホーム画面の「おてつだい」から開いて押してね。')
+     +'</p>'+(perm?'':'<button class="btn acc wide" data-act="push">アイコンに数字を出す</button>')+'</div>';
+    return h+logoutBtn()}
   h+='<h2>通知(この端末)</h2><div class="panel stack"><p class="hint" style="margin:0">'
    +(on?'この端末に通知がとどきます。子どもが「やった!」「こうかん」を押すと、5〜15分ほどで知らせます。':'子どもが「やった!」「こうかん」を押したときに、この端末に知らせます。ホーム画面の「おてつだい」から開いて押してね。')
    +'</p><button class="btn acc wide" data-act="push"'+(S.pushBusy?' disabled':'')+'>'+(S.pushBusy?'登録中…':on?'通知を登録しなおす':'通知を登録する')+'</button></div>';
