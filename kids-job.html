@@ -204,6 +204,14 @@ th,th:first-child,td:first-child{font-weight:600}
 @media (min-width:700px){.wrap,.tabs nav{max-width:660px}}
 .wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .tabs{padding-left:max(8px,env(safe-area-inset-left,0px));padding-right:max(8px,env(safe-area-inset-right,0px))}
+/* v11.1: Duoなど右に空いた列がある・幅が広い画面では、下のメニューを右の列にたてに並べる(html.side はJSで付ける) */
+html.side .tabs{left:auto;top:0;right:0;bottom:0;width:var(--sidew,96px);border-top:0;border-left:1px solid var(--line);padding:calc(8px + env(safe-area-inset-top,0px)) 4px calc(16px + env(safe-area-inset-bottom,0px))}
+html.side .tabs nav{max-width:none;height:100%;flex-direction:column;justify-content:flex-end;gap:6px}
+html.side .tab{flex:0 0 auto;min-height:60px;justify-content:center;padding:6px 0;border-radius:8px}
+html.side .tab.on{background:var(--surface-2)}
+html.side .wrap{padding-right:calc(var(--sidew,96px) + 16px);padding-bottom:40px;max-width:calc(660px + var(--sidew,96px))}
+html.side #toast{left:calc(50% - var(--sidew,96px) / 2);bottom:calc(24px + env(safe-area-inset-bottom,0px))}
+#sideprobe{position:fixed;left:0;top:0;width:env(safe-area-inset-right,0px);height:0;visibility:hidden;pointer-events:none}
 </style>
 </head>
 <body>
@@ -216,6 +224,22 @@ th,th:first-child,td:first-child{font-weight:600}
 </div>
 <div class="tabs"><nav id="tabs" aria-label="メニュー"></nav></div>
 <div id="toast" role="status" aria-live="polite" hidden></div>
+<div id="sideprobe" aria-hidden="true"></div>
+<script>
+/* v11.1: 右に空いた列(Duoの時計の列)があるか、幅が600以上なら、メニューを右の列にする。開く・閉じる・回すたびに見直す */
+(function(){
+  function fit(){
+    var p=document.getElementById('sideprobe'),r=p?p.getBoundingClientRect().width:0,w=window.innerWidth,root=document.documentElement;
+    var side=r>=60||w>=600;
+    root.classList.toggle('side',side);
+    if(side)root.style.setProperty('--sidew',Math.round(Math.max(r,96))+'px');else root.style.removeProperty('--sidew');
+  }
+  fit();
+  window.addEventListener('resize',fit);
+  window.addEventListener('orientationchange',function(){setTimeout(fit,250)});
+  if(window.visualViewport)visualViewport.addEventListener('resize',fit);
+})();
+</script>
 
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/13.0.0/firebase-app.js";
@@ -234,7 +258,7 @@ var firebaseConfig={
 };
 /* ログインに使う2つのアカウント(メールは本物でなくてOK)。
    Firebaseの「ルール」にも、同じ PARENT_EMAIL を書いてあります。 */
-var APP_VERSION='v11';
+var APP_VERSION='v11.1';
 var PARENT_EMAIL='oya@example.com';
 var KID_EMAIL='kodomo@example.com';
 
