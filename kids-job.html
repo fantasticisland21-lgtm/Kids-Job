@@ -258,7 +258,7 @@ var firebaseConfig={
 };
 /* ログインに使う2つのアカウント(メールは本物でなくてOK)。
    Firebaseの「ルール」にも、同じ PARENT_EMAIL を書いてあります。 */
-var APP_VERSION='v11.3';
+var APP_VERSION='v11.4';
 var PARENT_EMAIL='oya@example.com';
 var KID_EMAIL='kodomo@example.com';
 
@@ -270,7 +270,7 @@ var fs=getFirestore(fbApp);
    おとなの端末を settings/push の devices に登録しておくと、GitHub Actions(notify.js)が
    5分ごとに新しいお願いを調べて通知する。ホーム画面のアイコンには、かくにん待ちの件数を出す。
    VAPID_KEY は Firebase の「プロジェクトの設定 → Cloud Messaging → ウェブプッシュ証明書」の鍵 */
-var VAPID_KEY='';
+var VAPID_KEY='BHnMuIMtB2rROk3IKSgxY7b-AmpInYNfFcZcTcifcXVfZBwzfUxMa46zh7Qn0xBNTX9mBSwTY2xAP_JHKDzIqeA';
 var PUSH_DOC=doc(fs,'settings','push');
 function today(){var d=new Date();return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate()}
 function tokKey(t){var h=0;for(var i=0;i<t.length;i++)h=(h*31+t.charCodeAt(i))|0;return 'd'+(h>>>0).toString(36)+t.length}
