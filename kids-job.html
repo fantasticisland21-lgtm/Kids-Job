@@ -258,7 +258,7 @@ var firebaseConfig={
 };
 /* ログインに使う2つのアカウント(メールは本物でなくてOK)。
    Firebaseの「ルール」にも、同じ PARENT_EMAIL を書いてあります。 */
-var APP_VERSION='v11.4';
+var APP_VERSION='v11.5';
 var PARENT_EMAIL='oya@example.com';
 var KID_EMAIL='kodomo@example.com';
 
@@ -825,6 +825,21 @@ onAuthStateChanged(auth,function(u){
 document.getElementById('ver').textContent=APP_VERSION;
 S.sel=store('otm.kid');S.who=store('otm.who')==='kodomo'?'kodomo':'oya';
 render(true);
+</script>
+<!-- v11.5: 一時的な確認用(右の空白に描けるか)。確認が済んだら消す -->
+<div id="dbgbox" style="position:fixed;left:8px;top:calc(8px + env(safe-area-inset-top,0px));z-index:99999;background:rgba(0,0,0,.82);color:#fff;font:13px/1.5 -apple-system,sans-serif;padding:8px 10px;border-radius:8px;white-space:pre;max-width:90vw" onclick="this.remove()"></div>
+<div id="dbgR" style="position:fixed;width:env(safe-area-inset-right,0px);height:0;visibility:hidden"></div>
+<div id="dbgL" style="position:fixed;width:env(safe-area-inset-left,0px);height:0;visibility:hidden"></div>
+<script>
+(function(){
+  function show(){
+    var b=document.getElementById('dbgbox');if(!b)return;
+    var R=document.getElementById('dbgR').getBoundingClientRect().width,L=document.getElementById('dbgL').getBoundingClientRect().width;
+    var vv=window.visualViewport?Math.round(visualViewport.width):'-';
+    b.textContent='かくにん用(タップで消える)\nアプリの幅: '+window.innerWidth+'\n見えている幅: '+vv+'\n画面ぜんたいの幅: '+screen.width+' × '+screen.height+'\n右の空き: '+Math.round(R)+'\n左の空き: '+Math.round(L)+'\nアプリの高さ: '+window.innerHeight+'\nメニュー右: '+(document.documentElement.classList.contains('side')?'はい':'いいえ');
+  }
+  show();addEventListener('resize',show);addEventListener('orientationchange',function(){setTimeout(show,300)});
+})();
 </script>
 </body>
 </html>
